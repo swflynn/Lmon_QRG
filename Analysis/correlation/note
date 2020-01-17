@@ -1,0 +1,9 @@
+4-4-19
+Compute the pair correlation and make a histogram
+Testing to see if there are peaks (associated with nearest neighor) in the distribution
+
+
+Conclusion, there are no peaks just a gaussian distribution.
+Implies nearest neighbor is not a meaningful cutoff for this problem we cannot simply use nearest neighbor to make a cutoff disk for analysis.
+
+I may just be able to remove this code dont needd on github,m but if I want to edit and understand then I can keep it, it is working code
