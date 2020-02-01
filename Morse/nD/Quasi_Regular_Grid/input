@@ -1,0 +1,10 @@
+2                                           !d: Dimensionality of the gridpoints
+0.2041241  0.18371169  0.16329928  0.1 0.1 0.1 0.1 0.1 0.1       !omega for V(x)
+200                                                !Npoints:number of gridpoints
+100000                !N_MMC_box: number of MMC moves for computing the box size
+50	          !N_1D: Number of points in a single dimension for normalizing P(x)
+100000                     !N_MMC_grid: Number of MMC steps to distribute points
+12                                                 !E_cut: Energy Cutoff Contour
+1.2                                        !c_LJ: Scaling parameter for LJ sigma
+1000                                    !ITER: the maxmium iterations of simplex
+1D-6                                    !FTOL:tolerance for simplex minimization
