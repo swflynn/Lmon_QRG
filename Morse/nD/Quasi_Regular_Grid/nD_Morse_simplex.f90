@@ -17,6 +17,7 @@ implicit none
 !E_cut          ==>Energy Cutoff Contour
 !integral_P     ==>Normalization for P_x
 !omega          ==>(d) Parameter for Morse Potential
+!k              ==>Needed global for calling amoeba
 !==============================================================================!
 integer::d,Npoints,k
 double precision,allocatable,dimension(:,:)::x
@@ -98,7 +99,7 @@ integer::i
 double precision::PP(d),f,vtot
 vtot=0.
 do i=1,Npoints
-  vtot=vtot+Pair_LJ_NRG(x(:,i),PP(:))
+  if(i.ne.k) vtot=vtot+Pair_LJ_NRG(x(:,i),PP(:))
 enddo
 f=vtot
 end function f
@@ -155,7 +156,8 @@ subroutine compute_integral_P(N_1D)
 !Moment         ==>First Moments for the distribution
 !r(d)           ==>Coordinates
 !==============================================================================!
-integer::i,j,index1(d),N_1D,Ntotal
+integer(kind=8)::N_1D
+integer::i,j,index1(d),Ntotal
 double precision::r(d),Moment,dummy,delx(d)
 Moment=0.
 Ntotal=(N_1D+1)**d
@@ -318,7 +320,8 @@ use QRG_mod
 !update names here
 !==============================================================================!
 implicit none
-integer::N_MMC_box,N_MMC_grid,N_1D,ITER,Npar,m,i,j
+integer::N_MMC_box,N_MMC_grid,ITER,Npar,m,i,j
+integer(kind=8)::N_1D
 double precision::FTOL
 double precision,allocatable,dimension(:)::x0,s,U_move,Y
 double precision,allocatable,dimension(:,:)::U,PP
