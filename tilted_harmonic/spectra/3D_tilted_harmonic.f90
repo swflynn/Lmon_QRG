@@ -1,12 +1,12 @@
-!=============================================================================80
-!                         3D Tilted Harmonic EigenSpectra
+!=================20==================40==================60==================80
+!                       3D Tilted Harmonic EigenSpectra
 !==============================================================================!
 !       Modified:
 !   13 Feburary 2020
 !       Author:
 !   Shane Flynn
 !==============================================================================!
-!Develop/text normal mode coordinates and and subspace calculations using a
+!Develop/test normal mode coordinates and and subspace calculations using a
 !tilted harmonic potential.
 !==============================================================================!
 module toy_mod
@@ -19,13 +19,13 @@ implicit none
 !==============================================================================!
 double precision,parameter::Hmass=1d0
 !==============================================================================!
-integer::d,Natoms
+integer::d,d1,d2,Natoms
 character(len=2),allocatable::atom_type(:)
 double precision,allocatable::mass(:),sqrt_mass(:)
 !==============================================================================!
 contains
 !==============================================================================!
-subroutine potential(x,enegy)
+subroutine potential(x,energy)
 !==============================================================================!
 !Tilted harmonic potential for testing normal mode transformations
 !V:=(x-y)^2 + (x+y)^2 + (z-x)^2
@@ -53,7 +53,6 @@ end function Atom_Mass
 !==============================================================================!
 subroutine Toy_Force(x,forces)
 !==============================================================================!
-!       Discussion:
 !Returns the Forces associated with Toy_Potential Subroutine
 !Forces are hard-coded based on Toy_Potential
 !==============================================================================!
@@ -67,49 +66,47 @@ end subroutine Toy_Force
 !==============================================================================!
 subroutine Toy_Hessian(x,Hess_Mat)
 !==============================================================================!
-!       Discussion:
 !Numerically evaluate the Hessian using forces from "Toy_Force Subroutine"
 !==============================================================================!
 !s          ==>Perturbation Parameter
-!Hess_Mat   ==>(d,d); Symmetrized Mass-Scaled Hessian
-!x          ==>(d); XYZ Configuration
+!Hess_Mat   ==>(d1,d1): Symmetrized Mass-Scaled Hessian
+!x          ==>(d): XYZ coordinates
 !==============================================================================!
 implicit none
 integer::i,j
-double precision::Hess_Mat(d,d),x(d),r(d),force(d),force0(d)
+double precision::Hess_Mat(d1,d1),x(d),r(d),force(d),force0(d)
 double precision,parameter::s=1d-6
 r=x
 call Toy_Force(r,force0)
-do i=1,d
+do i=1,d1
   r(i)=x(i)+s
   call Toy_Force(r,force)
   r(i)=x(i)
-  do j=1,d
+  do j=1,d1
     Hess_Mat(i,j)=(force0(j)-force(j))/s
   enddo
 enddo
 !==============================================================================!
 !                   Symmetrize and Mass-Scale the Hessian
 !==============================================================================!
-do i=1,d
+do i=1,d1
   do j=1,i
     if(i.ne.j) Hess_Mat(i,j)=(Hess_Mat(i,j)+Hess_Mat(j,i))/2
     Hess_Mat(i,j)=Hess_Mat(i,j)/(sqrt_mass(i)*sqrt_mass(j))
     if(i.ne.j) Hess_Mat(j,i)=Hess_Mat(i,j)
     enddo
 enddo
+write(*,*) 'Toy Hessian ==> ', Hess_Mat
 end subroutine Toy_Hessian
 !==============================================================================!
 subroutine Freq_Hess(Hess_mat,omega,U)
 !==============================================================================!
-!       Discussion:
 !Compute Eigenvalues and Eigenvectors of Hessian
 !Uses the LLAPACK real symmetric eigen-solver (dsygev)
-!       Variables:
-!Hess_mat   ==>(d,d); Hessian Matrix
-!omega      ==>(d); Hessian Eigenvalues
-!U          ==>(d,d); Hessian Eigenvectors
-!       LLAPACK(dsyev):
+!Hess_mat   ==>(d1,d1); Hessian Matrix
+!omega      ==>(d1); Hessian Eigenvalues
+!U          ==>(d1,d1); Hessian Eigenvectors
+!     LLAPACK(dsyev):
 !v          ==>Compute both Eigenvalues and Eigenvectors
 !u          ==>Use Upper-Triangle of matrix
 !==============================================================================!
@@ -117,12 +114,12 @@ implicit none
 integer::i,info,lwork,Dimen
 double precision::Hess_mat(d,d),omega(d),U(d,d)
 double precision,allocatable::work(:)
-lwork=max(1,3*d-1)                               !suggested by LAPACK Developers
+lwork=max(1,3*d1-1)                              !suggested by LAPACK Developers
 allocate(work(max(1,lwork)))                     !suggested by LAPACK Developers
 U=Hess_mat
-call dsyev('v','u',d,U,d,omega,work,lwork,info)
+call dsyev('v','u',d1,U,d1,omega,work,lwork,info)
 write(*,*) 'Frequencies from the Hessian:'
-do i=d,1,-1
+do i=d1,1,-1
   omega(i)=sign(sqrt(abs(omega(i))),omega(i))
   write(*,*) omega(i), 'normalized = 1?', sum(U(:,i)**2)
 enddo
@@ -133,54 +130,53 @@ end module toy_mod
 program main
 use toy_mod
 !==============================================================================!
-!unif_grid      ==>If True set alpha to be a constant, else use nearest neighbor
 !grid_in        ==>Filename Containing Gridpoints
-!theory_in      ==>Filename Containing Analytic Eigenvalues
 !NG             ==>Number of Gaussian Basis Functions (gridpoints)
 !GH_order       ==>Number of Points for evaluating the potential (Gauss-Hermite)
 !alpha0         ==>Flat Scaling Parameter for Gaussian Widths
 !alpha          ==>(d) Gaussian Widths
-!RCN            ==>Recriprical Convergence Number, stability of Overlap Matrix
 !x              ==>(d) ith atoms coordinates
 !x_ij           ==>i-jth gaussian center (product of Gaussians is a Gaussian)
+!Hess           ==>
 !Smat           ==>(NG,NG) Overlap Matrix
 !Hmat           ==>(NG,NG) Hamiltonian Matrix
 !==============================================================================!
 implicit none
-!!!character(len=50)::grid_in,theory_in
-!!!integer::NG,GH_order,i,j,k,ll
-!!!double precision::aij,r2,alpha0,Vij,RCN
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!character(len=50)::theory_in
+!!!integer::GH_order,j,k,ll
+!!!double precision::Vij
 !!!double precision,parameter::pi=4.*atan(1d0)
-!!!double precision,allocatable,dimension(:)::alpha,eigenvalues,x_ij,z,w,rr,l
+!!!double precision,allocatable,dimension(:)::eigenvalues,x_ij,z,w,rr,l
 !!!double precision,allocatable,dimension(:)::theory
 !!!double precision,allocatable,dimension(:,:)::x,Smat,Hmat
-!!!!==============================================================================!
-!!!!                            LLAPACK dsygv variables
-!!!!==============================================================================!
-!!!integer::itype,info,lwork
-!!!double precision,allocatable,dimension(:)::work
-!!!!==============================================================================!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-character(len=50)::coord_in
+character(len=50)::coord_in,grid_in
 double precision::E0
-!==============================================================================!
-integer::i
-double precision,allocatable::q0(:),force(:)
-double precision,allocatable::Hess(:,:),omega(:),U(:,:)
+integer::NG,i,j
+logical::unif_grid
+double precision::alpha0,aij,x2,rcn
+double precision,allocatable,dimension(:)::q0,force,omega,alpha,eigenvalues
+double precision,allocatable,dimension(:,:)::Hess,U,x,Smat
 !==============================================================================!
 !                       LLAPACK dsygv variables                                !
 !==============================================================================!
 integer::itype,info,lwork
 double precision,allocatable::work(:)
 !==============================================================================!
-!==============================================================================!
 !                           Read Input Data File                               !
 !==============================================================================!
 read(*,*) coord_in
+read(*,*) grid_in
+read(*,*) d1
+read(*,*) d2
+read(*,*) NG
+read(*,*) unif_grid
+read(*,*) alpha0
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!read(*,*) GH_order
+!!!!read(*,*) alpha0
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !==============================================================================!
 !                         Set Input Water Geometry
 !==============================================================================!
@@ -189,153 +185,100 @@ read(17,*) Natoms
 read(17,*)
 d=3*Natoms
 !==============================================================================!
-allocate(atom_type(Natoms),mass(Natoms),sqrt_mass(d),q0(d))
-allocate(force(d),Hess(d,d),omega(d),U(d,d))
+allocate(atom_type(Natoms),mass(Natoms),sqrt_mass(d),q0(d),force(d),Hess(d,d))
+allocate(omega(d),U(d,d),x(d,NG),alpha(NG),Smat(NG,NG),eigenvalues(NG))
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!allocate(x(d2,NG),x_ij(d),rr(d))
+!!!!allocate(Hmat(NG,NG),z(GH_order),w(GH_order),l(d),theory(NG))
+!!!!write(*,*) 'Test 0; Successfully Read Input File'
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !==============================================================================!
 !                         Input Configuration Energy
-!3 hardcoded for x,y,z spacial dimensions for an atoms coordinates
 !==============================================================================!
 do i=1,Natoms
-  read(17,*) atom_type(i),q0(3*i-2:3*i)
+  read(17,*) atom_type(i),q0(3*i-2:3*i)                  !xyz spacial dimensions
   mass(i)=Atom_mass(atom_type(i))
   write(*,*) 'mass', mass(i)
   sqrt_mass(3*i-2:3*i)=sqrt(mass(i))
   write(*,*) 'sqrt mass', sqrt_mass(i)
 enddo
 close(17)
-write(*,*) 'd ==> ', d
+write(*,*) 'd system dimensionality ==> ', d
+write(*,*) 'd1 monomer dimensionality ==> ', d1
+write(*,*) 'd2 monomer subspace dimensionality ==> ', d2
 write(*,*) 'q0 ==>', q0
 call potential(q0,E0)
 write(*,*) 'E0 ==> ', E0
 !==============================================================================!
-! 			Compute Hessian and Frequencies
+! 			                Compute Hessian and Frequencies
 !==============================================================================!
 call Toy_Hessian(q0,Hess)
 call Freq_Hess(Hess,omega,U)
 write(*,*) 'Test 2; Successfully Computed Hessian'
 !==============================================================================!
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+!                         Read GridPoints x(d2,NG)
 !==============================================================================!
-!program QRG_Spec
-!use QRGB_mod
+open(18,File=grid_in)
+do i=1,NG
+  read(18,*) x(:,i)
+enddo
+close(18)
+write(*,*) 'Test 3; Successfully Read Grid Points'
 !==============================================================================!
-!unif_grid      ==>If True set alpha to be a constant, else use nearest neighbor
-!grid_in        ==>Filename Containing Gridpoints
-!theory_in      ==>Filename Containing Analytic Eigenvalues
-!NG             ==>Number of Gaussian Basis Functions (gridpoints)
-!GH_order       ==>Number of Points for evaluating the potential (Gauss-Hermite)
-!alpha0         ==>Flat Scaling Parameter for Gaussian Widths
-!alpha          ==>(d) Gaussian Widths
-!RCN            ==>Recriprical Convergence Number, stability of Overlap Matrix
-!x              ==>(d) ith atoms coordinates
-!x_ij           ==>i-jth gaussian center (product of Gaussians is a Gaussian)
-!Smat           ==>(NG,NG) Overlap Matrix
-!Hmat           ==>(NG,NG) Hamiltonian Matrix
+!                       Generate Gaussian Widths
 !==============================================================================!
-!!!!implicit none
-!!!!character(len=50)::grid_in,theory_in
-!!!!integer::NG,GH_order,i,j,k,ll
-!!!!double precision::aij,r2,alpha0,Vij,RCN
-!!!!double precision,parameter::pi=4.*atan(1d0)
-!!!!double precision,allocatable,dimension(:)::alpha,eigenvalues,x_ij,z,w,rr,l
-!!!!double precision,allocatable,dimension(:)::theory
-!!!!double precision,allocatable,dimension(:,:)::x,Smat,Hmat
-!!!!!==============================================================================!
-!!!!!                            LLAPACK dsygv variables
-!!!!!==============================================================================!
-!!!!integer::itype,info,lwork
-!!!!double precision,allocatable,dimension(:)::work
-!!!!!==============================================================================!
-!!!!!                             Read Input Data File
-!!!!!==============================================================================!
-!!!!read(*,*) d
-!!!!allocate(omega(d))
-!!!!read(*,*) omega
-!!!!read(*,*) NG
-!!!!read(*,*) GH_order
-!!!!read(*,*) grid_in
-!!!!read(*,*) theory_in
-!!!!read(*,*) alpha0
-!!!!!==============================================================================!
-!!!!!                               Allocations
-!!!!!==============================================================================!
-!!!!allocate(x(d,NG),x_ij(d),rr(d),alpha(NG),eigenvalues(NG),Smat(NG,NG))
-!!!!allocate(Hmat(NG,NG),z(GH_order),w(GH_order),l(d),theory(NG))
-!!!!write(*,*) 'Test 0; Successfully Read Input File'
-!!!!!==============================================================================!
-!!!!!                           Read GridPoints x(d,NG)
-!!!!!==============================================================================!
-!!!!open(17,File=grid_in)
-!!!!do i=1,NG
-!!!!  read(17,*) x(:,i)
-!!!!enddo
-!!!!close(17)
-!!!!!==============================================================================!
-!!!!!                    Generate Gaussian Widths (Nearest Neighbor)
-!!!!!==============================================================================!
-!!!!do i=1,NG
-!!!!  alpha(i)=1d20                            !large distance for placeholder
-!!!!  do j=1,NG
-!!!!    if(j.ne.i) then
-!!!!      r2=sum((x(:,i)-x(:,j))**2)          !distance between gridpoints
-!!!!      if(r2<alpha(i)) alpha(i)=r2
-!!!!    endif
-!!!!  enddo
-!!!!  alpha(i)=alpha0/alpha(i)
-!!!!enddo
-!!!!!==============================================================================!
-!!!!!                              Write Alphas to File
-!!!!!==============================================================================!
-!!!!open(unit=18,file='alphas.dat')
-!!!!do i=1,NG
-!!!!  write(18,*) alpha(i)
-!!!!enddo
-!!!!close(18)
-!!!!!==============================================================================!
-!!!!write(*,*) 'Test 1; Successfully Generated Alphas from Nearest Neighbor'
-!!!!!==============================================================================!
-!!!!!                               Overlap Matrix (S)
-!!!!!==============================================================================!
-!!!!do i=1,NG
-!!!!  do j=i,NG
-!!!!    aij=alpha(i)*alpha(j)/(alpha(i)+alpha(j))
-!!!!    r2=sum((x(:,i)-x(:,j))**2)
-!!!!    Smat(i,j)=(2*sqrt(alpha(i)*alpha(j))/(alpha(i)+alpha(j)))**(0.5*d)&
-!!!!    *exp(-aij*r2)
-!!!!    Smat(j,i)=Smat(i,j)
-!!!!  enddo
-!!!!enddo
-!!!!!==============================================================================!
-!!!!!                   Check to see if S is positive definite
-!!!!!   If removed you will need to allocate llapack arrays before using Hmat
-!!!!!==============================================================================!
-!!!!lwork=max(1,3*NG-1)
-!!!!allocate(work(max(1,lwork)))
-!!!!call dsyev('v','u',NG,Smat,NG,eigenvalues,work,Lwork,info)
-!!!!write(*,*) 'Info (Initial Overlap Matrix) ==> ', info
-!!!!RCN=eigenvalues(1)/eigenvalues(NG)
-!!!!write(*,*) 'RCN ==> ', RCN
-!!!!open(unit=19,file='overlap_eigenvalues.dat')
-!!!!do i=1,NG
-!!!!  write(19,*) eigenvalues(i)
-!!!!enddo
-!!!!close(19)
-!!!!write(*,*) 'Test 2; Overlap Matrix is Positive Definite'
+if(unif_grid.EQV..TRUE.)then
+  alpha=alpha0
+  write(*,*) 'Test 3; Uniform Grid, Alpha:=Constant', alpha0
+else
+  do i=1,NG
+    alpha(i)=1d20                            !large distance for placeholder
+    do j=1,NG
+      if(j.ne.i) then
+        x2=sum((x(:,i)-x(:,j))**2)          !distance between gridpoints
+        if(x2<alpha(i)) alpha(i)=x2
+      endif
+    enddo
+    alpha(i)=alpha0/alpha(i)
+  enddo
+  write(*,*) 'Test 3; Successfully Generated Alphas according to P(x)'
+endif
+!==============================================================================!
+!                              Write Alphas to File
+!==============================================================================!
+open(unit=19,file='alphas.dat')
+do i=1,NG
+  write(19,*) alpha(i)
+enddo
+close(19)
+!==============================================================================!
+!                               Overlap Matrix (S)
+!==============================================================================!
+do i=1,NG
+  do j=i,NG
+    aij=alpha(i)*alpha(j)/(alpha(i)+alpha(j))
+    x2=sum((x(:,i)-x(:,j))**2)
+    Smat(i,j)=(2*sqrt(alpha(i)*alpha(j))/(alpha(i)+alpha(j)))**(0.5*d)&
+    *exp(-aij*x2)
+    Smat(j,i)=Smat(i,j)
+  enddo
+enddo
+!==============================================================================!
+!                   Check to see if S is positive definite
+!   If removed you will need to allocate llapack arrays before using Hmat
+!==============================================================================!
+lwork=max(1,3*NG-1)
+allocate(work(max(1,lwork)))
+call dsyev('v','u',NG,Smat,NG,eigenvalues,work,Lwork,info)
+write(*,*) 'Info (Initial Overlap Matrix) ==> ', info
+rcn=eigenvalues(1)/eigenvalues(NG)
+write(*,*) 'RCN ==> ', RCN
+open(unit=20,file='overlap_eigenvalues.dat')
+do i=1,NG
+  write(20,*) eigenvalues(i)
+enddo
+close(20)
+write(*,*) 'Test 4; Overlap Matrix is Positive Definite'
 !!!!!==============================================================================!
 !!!!!             Use Gauss Hermit quadrature to evaluate the potential matrix
 !!!!!               z(GH-order) w(GH-order) --- quadrature points and weights
@@ -425,4 +368,4 @@ write(*,*) 'Test 2; Successfully Computed Hessian'
 !!!!write(99,*) 'GH Order==>', GH_order
 !!!!close(99)
 !!!!write(*,*) 'Hello Universe!'
-end program QRG_Spec
+end program main
