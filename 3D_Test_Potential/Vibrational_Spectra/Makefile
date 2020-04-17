@@ -1,24 +1,29 @@
 #==============================================================================#
 #			   Fortran Compiler/Flags
-#-O0=no optimization,-O3=full optimization
+#		-O0=no optimization,-O3=full optimization
 #==============================================================================#
 FC=gfortran
 FFLAGS=-O2
 #FFLAGS= -g -O0 -Wall -Wextra -pedantic -fcheck=all -fbacktrace
 #==============================================================================#
-#			   	Targets
+#Targets
 #==============================================================================#
-all: main
+all: potentials int mod grid main
 #==============================================================================#
-#			Compile all Fortran Files
+potentials:
+	$(FC) $(FFLAGS) -c potentials_mod.f90
 #==============================================================================#
-%.o: %.f90
-	$(FC) $(FFLAGS) -o $@ -c $^
+int:
+	$(FC) $(FFLAGS) -c gen_hermite_rule.f90
 #==============================================================================#
-#				DGB Cluster
+mod:
+	$(FC) $(FFLAGS) -c Lmon_spectra_module.f90
 #==============================================================================#
-main: 3D_tilted_harmonic.o
-	$(FC) -o $@ $^  -llapack
+grid:
+	$(FC) $(FFLAGS) -c Lmon_spectra.f90
+#==============================================================================#
+main:
+	$(FC) $(FFLAGS) gen_hermite_rule.o potentials_mod.o Lmon_spectra_module.o Lmon_spectra.o -llapack
 #==============================================================================#
 clean:
-	rm -rf *.o *.mod main
+	rm -rf *.o *.mod main out a.out

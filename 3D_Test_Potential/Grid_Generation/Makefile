@@ -1,24 +1,26 @@
 #==============================================================================#
-#			   Fortran Compiler/Flags
+#			      Fortran Compiler/Flags
 #-O0=no optimization,-O3=full optimization
 #==============================================================================#
 FC=gfortran
 FFLAGS=-O2
 #FFLAGS= -g -O0 -Wall -Wextra -pedantic -fcheck=all -fbacktrace
 #==============================================================================#
-#			   	Targets
+#			   	    Targets
 #==============================================================================#
-all: main
+all: potentials qrg_module qrg_main runner
 #==============================================================================#
-#			Compile all Fortran Files
+potentials:
+	$(FC) $(FFLAGS) -c potentials_mod.f90
 #==============================================================================#
-%.o: %.f90
-	$(FC) $(FFLAGS) -o $@ -c $^
+qrg_module:
+	$(FC) $(FFLAGS) -c qrg_mod.f90
 #==============================================================================#
-#				DGB Cluster
+qrg_main:
+	$(FC) $(FFLAGS) -c QRG.f90
 #==============================================================================#
-main: nD_Morse_simplex.o
-	$(FC) -o $@ $^
+runner:
+	$(FC) $(FFLAGS) potentials_mod.o qrg_mod.o QRG.o
 #==============================================================================#
 clean:
-	rm -rf *.o *.mod main
+	rm -rf *.o *.mod a.out

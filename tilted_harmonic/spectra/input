@@ -1,7 +1,0 @@
-3D_geometry.xyz    !input geometry
-grid.dat           !input grid
-3
-3
-125
-.true.
-2

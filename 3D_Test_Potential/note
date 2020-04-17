@@ -1,0 +1,12 @@
+4-16-20
+Begin testing normal mode transformations for Lmon calculations
+Start with a 3D toy potential for testing.
+
+Grid is generated with QRG code (included here, the same as the QRG repo). 
+
+Current code computes Hessian and associated terms, however, it does not use them.
+The code is exactly the same as QRG vibrational analysis and reproduces its 
+results exactly.
+The computed hessian and forces are correct (consistent with analytic expression).
+
+The next step is to introduce normal modes, everything to this point is working. 
