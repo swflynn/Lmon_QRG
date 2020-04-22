@@ -1,0 +1,3 @@
+Uses teh TIP4P.f90 water potential and the gen_hermite_rul.f90 for potential 
+evaluations.
+Need to check the restrictions on TIP4P.f90 before I post it here
