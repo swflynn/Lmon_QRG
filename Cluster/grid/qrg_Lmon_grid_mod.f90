@@ -26,10 +26,10 @@ subroutine get_xyz_parameters(d,Natoms)
 !==============================================================================!
 implicit none
 integer::d,Natoms
-open(16,File='cage_tip4p.xyz')
-read(16,*) Natoms
+open(15,File='cage_tip4p.xyz')
+read(15,*) Natoms
 d=3*Natoms
-close(16)
+close(15)
 end subroutine get_xyz_parameters
 !==============================================================================!
 subroutine read_input_geometry(d,Natoms,atom_type,mass,sqrt_mass,x0)
@@ -97,9 +97,14 @@ integer::d
 double precision::x0(d),E0,forces(d),E_cut,bohr,autocm,autokcalmol
 x0=x0/bohr
 E_cut=E_cut/autokcalmol
-write(*,*) 'E_cut in atomic units (assumed kcal/mol input)', E_cut
+open(17,File='cluster_energy.dat')
+write(17,*) 'x0 in atomic units (xo/bohr)', x0
+write(17,*) 'E_cut in atomic units (assumed kcal/mol input)', E_cut
 call water_potential(potential,d,x0,E0,forces)
-write(*,*) 'E0 ==> ', E0, 'atomic', E0*autocm, 'cm-1', E0*autokcalmol, 'kcal/mol'
+write(17,*) 'E0 (atomic) ==> ', E0
+write(17,*) 'E0 (cm-1) ==> ', E0*autocm
+write(17,*) 'E0 (kcal/mol) ==> ', E0*autokcalmol
+close(17)
 end subroutine convert_to_atomic_units
 !==============================================================================!
 subroutine water_potential(potential,d,x,V,forces)
@@ -198,11 +203,13 @@ double precision::Hess_mat(d1,d1),omega(d1),U(d1,d1),work(max(1,lwork))
 double precision::temp(d1),temp2(d1,d1)
 U=Hess_mat
 call dsyev('v','u',d1,U,d1,omega,work,Lwork,info)
+open(18,File='freq_scaled_hess.dat')
 write(*,*) 'Frequencies from the Mass-Scaled Hessian:'
 do i=d1,1,-1
   omega(i)=sign(sqrt(abs(omega(i))),omega(i))
-  write(*,*) omega(i), 'normalized = 1?', sum(U(:,i)**2)
+  write(18,*) omega(i), 'normalized = 1?', sum(U(:,i)**2)
 enddo
+close(18)
 !==============================================================================!
 !Subspace Needs Largest Eigenvalues: llapack outputs small to large ==>re-order
 !==============================================================================!
@@ -259,7 +266,7 @@ double precision::x0(d),r_i(d2),U(d1,d1),sqrt_mass(d),E_cut,integral_P,V,P_i
 !==============================================================================!
 call normal_cartesian_potential(potential,d,d1,d2,x0,r_i,V,U,sqrt_mass)
 if(V<E_cut) P_i=(E_cut-V)**(d2/2.)/integral_P
-if(V>=E_cut) P_i=1d-20                      !Define distribution=0 beyond Ecut
+if(V>=E_cut) P_i=1d-20                        !Define distribution=0 beyond Ecut
 end function P_i
 !==============================================================================!
 function random_integer(Nmin,Nmax)
@@ -308,7 +315,7 @@ do i=1,N_MMC_box
   call random_number(s)
 !trial move needs to be (-1,1), random numbers are (0,1) ==>s=2*s-1
   r_trial =r_i+mv_cutoff*(2*s-1)
-  call random_number(dummy)                           !MMC acceptance criteria
+  call random_number(dummy)                             !MMC acceptance criteria
   if(P_i(potential,d,d1,d2,x0,r_trial,U,sqrt_mass,V,E_cut,integral_P)/&
   P_i(potential,d,d1,d2,x0,r_i,U,sqrt_mass,V,E_cut,integral_P).ge.dummy) then
     r_i=r_trial
@@ -344,7 +351,7 @@ integer::d,d1,d2,N_1D,i,j,index1(d2),Ntotal
 double precision::x0(d),r_i(d2),V,U(d1,d1),sqrt_mass(d),E_cut,integral_P,Moment
 double precision::delr(d2),rmin(d2),rmax(d2),dummy
 !==============================================================================!
-open(unit=55,file='direct_grid.dat')
+open(19,File='direct_grid.dat')
 Moment=0.
 Ntotal=(N_1D+1)**d2
 index1=0
@@ -361,14 +368,14 @@ do i=1,Ntotal
   r_i(:)=rmin(:)+index1(:)*delr(:)
   dummy=P_i(potential,d,d1,d2,x0,r_i,U,sqrt_mass,V,E_cut,integral_P)
   Moment=Moment+dummy
-  if(V<E_cut) write(55,*) r_i
+  if(V<E_cut) write(19,*) r_i
 enddo
 dummy=1./N_1D**d2
 do j=1,d2
   dummy=dummy*(rmax(j)-rmin(j))
 enddo
 integral_P=dummy*Moment
-close(55)
+close(19)
 end subroutine compute_integral_P
 !==============================================================================!
 subroutine initial_distribution(potential,d,d1,d2,x0,r,V,U,sqrt_mass,Npoints,&
@@ -402,11 +409,11 @@ do while(i.le.Npoints)
     i=i+1
   endif
 enddo
-open(unit=17,file='grid_ini.dat')
+open(20,File='grid_ini.dat')
 do i=1,Npoints
-  write(17,*) r(:,i)
+  write(20,*) r(:,i)
 enddo
-close(17)
+close(20)
 end subroutine initial_distribution
 !==============================================================================!
 function Pair_LJ_NRG(potential,d,d1,d2,x0,r_i,r_j,V,U,sqrt_mass,E_cut,&
@@ -538,16 +545,16 @@ do i=1,N_MMC_grid
   deltae1=0
   endif
 enddo
-open(unit=18,file='qrg.dat')
+open(21,File='grid.dat')
 do i=1,Npoints
-  write(18,*) r(:,i)
+  write(21,*) r(:,i)
 enddo
-close(18)
+close(21)
 !==============================================================================!
 end subroutine Quasi_Regular
 !==============================================================================!
 subroutine write_out(potential,Npoints,d,d1,d2,E_cut,rmin,rmax,N_1D,N_MMC_box,&
-  c_LJ,N_MMC_grid,MMC_freq,integral_P)
+  c_LJ,N_MMC_grid,MMC_freq,integral_P,time1,time2)
 !==============================================================================!
 !Write output file
 !==============================================================================!
@@ -567,10 +574,10 @@ subroutine write_out(potential,Npoints,d,d1,d2,E_cut,rmin,rmax,N_1D,N_MMC_box,&
 !==============================================================================!
 implicit none
 integer::Npoints,d,d1,d2,N_1D,N_MMC_grid, MMC_freq,i,N_MMC_box
-double precision::E_cut,c_LJ,integral_P,rmin(d2),rmax(d2)
+double precision::E_cut,c_LJ,integral_P,rmin(d2),rmax(d2),time1,time2
 character(len=20)::potential
 !==============================================================================!
-open(unit=99,file='out')
+open(99,file='out')
 write(99,*) 'd ==> ', d
 write(99,*) 'd1 ==> ', d1
 write(99,*) 'd2 ==> ', d2
@@ -586,6 +593,7 @@ write(99,*) 'c_LJ ==> ',c_LJ
 write(99,*) 'N_MMC_box ==> ',N_MMC_box
 write(99,*) 'N_MMC_grid ==> ',N_MMC_grid
 write(99,*) 'MMC_freq ==> ',MMC_freq
+write(99,*) 'Simulation Time==> ',time2-time1
 close(99)
 end subroutine write_out
 !==============================================================================!

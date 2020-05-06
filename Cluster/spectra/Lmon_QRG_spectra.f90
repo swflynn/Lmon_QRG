@@ -15,9 +15,6 @@
 !       Author:
 !   Shane Flynn
 !==============================================================================!
-!Begin Developing monomer calculations
-!Grid is generated in d1 subspace
-!==============================================================================!
 program main
 use mon_spectra_mod
 !==============================================================================!
@@ -54,7 +51,7 @@ double precision,parameter::autokcalmol=627.5096
 character(len=20)::potential
 character(len=2),allocatable,dimension(:)::atom_type
 integer::d,d2,Natoms,monomer_number,Lwork0,Lwork,NG,GH_order
-double precision::E0,alpha0,V
+double precision::E0,alpha0,V,RCN
 double precision,allocatable,dimension(:)::mass,sqrt_mass,x0,forces,omega,alpha
 double precision,allocatable,dimension(:)::eigenvalues
 double precision,allocatable,dimension(:,:)::Hess_Mat,U,r,Smat,Hmat
@@ -86,10 +83,10 @@ call read_grid(d1,d2,NG,r)
 call generate_alphas(d1,NG,alpha0,alpha,r)
 !==============================================================================!
 call overlap_matrix(d1,d2,NG,r,alpha,Smat)
-call overlap_eigenvalues(NG,Smat,eigenvalues,Lwork)
+call overlap_eigenvalues(NG,Smat,eigenvalues,Lwork,RCN)
 call get_hamiltonian(potential,d,d1,d2,NG,r,alpha,Smat,GH_order,Hmat,x0,&
   sqrt_mass,U)
-call hamiltonian_eigenvalues(NG,Smat,Hmat,eigenvalues,Lwork)
-call write_out(potential,d,d1,d2,Natoms,x0,NG,alpha0,GH_order,E0)
+call hamiltonian_eigenvalues(NG,Smat,Hmat,eigenvalues,Lwork,autocm,alpha0)
+call write_out(potential,d,d1,d2,Natoms,x0,NG,alpha0,GH_order,E0,RCN)
 !==============================================================================!
 end program main

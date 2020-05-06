@@ -76,8 +76,8 @@ call initial_pair_energy(potential,d,d1,d2,x0,V,U,sqrt_mass,E_cut,integral_P,&
   c_LJ,Npoints,r,Uij)
 call Quasi_Regular(potential,d,d1,d2,x0,V,U,sqrt_mass,E_cut,integral_P,r,Uij,&
   c_LJ,N_MMC_grid,MMC_freq,Npoints)
-call write_out(potential,Npoints,d,d1,d2,E_cut,rmin,rmax,N_1D,N_MMC_box,c_LJ,&
-  N_MMC_grid,MMC_freq,integral_P)
 call cpu_time(time2)
-write(*,*) 'CPU time ==> ', time1-time2
+call write_out(potential,Npoints,d,d1,d2,E_cut,rmin,rmax,N_1D,N_MMC_box,c_LJ,&
+  N_MMC_grid,MMC_freq,integral_P,time1,time2)
+call cpu_time(time2)
 end program main

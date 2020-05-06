@@ -53,15 +53,15 @@ implicit none
 integer::d,Natoms,i
 character(len=2)::atom_type(Natoms)
 double precision::mass(Natoms),sqrt_mass(d),x0(d)
-open(16,File='tip_geometry.xyz')
-read(16,*)
-read(16,*)
+open(17,File='cage_tip4p.xyz')
+read(17,*)
+read(17,*)
 do i=1,Natoms
-  read(16,*) atom_type(i),x0(3*i-2:3*i)                 !input is xyz therefore 3
+  read(17,*) atom_type(i),x0(3*i-2:3*i)                 !input is xyz therefore 3
   mass(i)=Atom_mass(atom_type(i))
   sqrt_mass(3*i-2:3*i)=sqrt(mass(i))
 enddo
-close(16)
+close(17)
 end subroutine read_input_geometry
 !==============================================================================!
 function Atom_Mass(atom)
@@ -103,7 +103,6 @@ integer::d
 double precision::x0(d),E0,forces(d),bohr,autocm,autokcalmol
 x0=x0/bohr
 call water_potential(potential,d,x0,E0,forces)
-write(*,*) 'E0 ==> ', E0,'atomic', E0*autocm,'cm-1', E0*autokcalmol,'kcal/mol'
 end subroutine convert_to_atomic_units
 !==============================================================================!
 subroutine water_potential(potential,d,x,V,forces)
@@ -125,10 +124,10 @@ character(len=20)::potential
 integer::d
 double precision::x(d),forces(d),V
 !==============================================================================!
-if(potential=='tip4p') then
+if(potential=='tip4p'.or.potential=="TIP4P") then
   call TIP4P(d/9,x,V,forces)
 else
-  stop 'Cannot Identify Potential, Check "potentials" Subroutine'
+  stop 'Cannot Identify Potential, Check "water_potential" Subroutine'
 endif
 end subroutine water_potential
 !==============================================================================!
@@ -202,11 +201,13 @@ double precision::Hess_mat(d1,d1),omega(d1),U(d1,d1),work(max(1,Lwork))
 double precision::temp(d1),temp2(d1,d1)
 U=Hess_mat
 call dsyev('v','u',d1,U,d1,omega,work,Lwork,info)
-write(*,*) 'Frequencies from the Mass-Scaled Hessian:'
+open(18,File='freq_hess.dat')
+write(18,*) 'Frequencies from the Mass-Scaled Hessian:'
 do i=d1,1,-1
   omega(i)=sign(sqrt(abs(omega(i))),omega(i))
-  write(*,*) omega(i), 'normalized = 1?', sum(U(:,i)**2)
+  write(18,*) omega(i), 'normalized = 1?', sum(U(:,i)**2)
 enddo
+close(18)
 !==============================================================================!
 !Subspace Needs Largest Eigenvalues: llapack outputs small to large ==>re-order
 !==============================================================================!
@@ -231,11 +232,11 @@ implicit none
 integer::d1,d2,NG,i
 double precision::r(d1,NG)
 r=0                                                           !set (d2+1:d1) = 0
-open(17,File='grid.dat')
+open(19,File='grid.dat')
 do i=1,NG
-  read(17,*) r(1:d2,i)          !grid is generated in d2 subspace, set rest to 0
+  read(19,*) r(1:d2,i)          !grid is generated in d2 subspace, set rest to 0
 enddo
-close(17)
+close(19)
 end subroutine read_grid
 !==============================================================================!
 subroutine generate_alphas(d1,NG,alpha0,alpha,r)
@@ -263,24 +264,12 @@ do i=1,NG
   enddo
   alpha(i)=alpha0/alpha(i)
 enddo
-call write_alphas(NG,alpha)
-end subroutine generate_alphas
-!==============================================================================!
-subroutine write_alphas(NG,alpha)
-!==============================================================================!
-!Write alphas to file
-!==============================================================================!
-!NG                 ==>Number of grid points
-!alpha(NG)          ==>Inverse Gaussian Widths
-!==============================================================================!
-integer::NG,i
-double precision::alpha(NG)
-open(unit=18,file='alphas.dat')
+open(unit=20,file='alphas.dat')
 do i=1,NG
-  write(18,*) alpha(i)
+  write(20,*) alpha(i)
 enddo
-close(18)
-endsubroutine write_alphas
+close(20)
+end subroutine generate_alphas
 !==============================================================================!
 subroutine overlap_elements(d1,d2,r_i,r_j,alpha_i,alpha_j,S_ij)
 !==============================================================================!
@@ -320,7 +309,7 @@ do i=1,NG
 enddo
 end subroutine overlap_matrix
 !==============================================================================!
-subroutine overlap_eigenvalues(NG,Smat,eigenvalues,Lwork)
+subroutine overlap_eigenvalues(NG,Smat,eigenvalues,Lwork,RCN)
 !==============================================================================!
 !Compute the Eigenvalues for the overlap matrix to check numerical stability
 !Must be positive definite; check the Recriprocal Condition Number
@@ -332,15 +321,14 @@ subroutine overlap_eigenvalues(NG,Smat,eigenvalues,Lwork)
 !==============================================================================!
 implicit none
 integer::i,NG,info,Lwork
-double precision::eigenvalues(NG),Smat(NG,NG),work(max(1,Lwork))
+double precision::eigenvalues(NG),Smat(NG,NG),work(max(1,Lwork)),RCN
 call dsyev('v','u',NG,Smat,NG,eigenvalues,work,Lwork,info)              !LLAPACK
-write(*,*) 'Info (Overlap Matrix) ==> ', info
-write(*,*) 'RCN ==> ', eigenvalues(1)/eigenvalues(NG)
-open(unit=19,file='overlap.dat')
+RCN=eigenvalues(1)/eigenvalues(NG)
+open(21,file='overlap.dat')
 do i=1,NG
-  write(19,*) eigenvalues(i)
+  write(21,*) eigenvalues(i)
 enddo
-close(19)
+close(21)
 end subroutine overlap_eigenvalues
 !==============================================================================!
 subroutine kinetic_elements(d1,d2,r_i,r_j,alpha_i,alpha_j,T_ij)
@@ -439,7 +427,7 @@ do i=1,NG
 enddo
 end subroutine get_hamiltonian
 !==============================================================================!
-subroutine hamiltonian_eigenvalues(NG,Smat,Hmat,eigenvalues,Lwork,autocm)
+subroutine hamiltonian_eigenvalues(NG,Smat,Hmat,eigenvalues,Lwork,autocm,alpha0)
 !==============================================================================!
 !Compute the Eigenvalues for the Hamiltonian matrix
 !Lwork, work, and info defined according to LLAPACK suggestions
@@ -452,20 +440,29 @@ subroutine hamiltonian_eigenvalues(NG,Smat,Hmat,eigenvalues,Lwork,autocm)
 implicit none
 integer::NG,info,Lwork,itype,i
 double precision::Smat(NG,NG),Hmat(NG,NG),eigenvalues(NG),work(max(1,Lwork))
-double precision::autocm
+double precision::autocm,alpha0
 itype=1
 call dsygv(itype,'n','u',NG,Hmat,NG,Smat,NG,eigenvalues,work,Lwork,info)
-open(unit=20,file='eigenvalues_atomic.dat')
-open(unit=21,file='eigenvalues_cm-1.dat')
-open(unit=22,file='fundamentals.dat')
+open(unit=22,file='eigenvalues_atomic.dat')
+open(unit=23,file='eigenvalues_cm-1.dat')
+open(unit=24,file='fundamentals_cm-1.dat')
+open(unit=25,file='alpha_100_atomic.dat')
+open(unit=26,file='alpha_100_cm-1.dat')
 do i=1,NG
-  write(20,*) eigenvalues(i)
-  write(21,*) eigenvalues(i)*autocm
+  write(22,*) eigenvalues(i)
+  write(23,*) eigenvalues(i)*autocm
+  write(25,*) alpha0, eigenvalues(i)
+  write(26,*) alpha0, eigenvalues(i)*autocm
 enddo
-close(20)
+write(24,*) alpha0, (eigenvalues(2)-eigenvalues(1))*autocm
+write(24,*) alpha0, (eigenvalues(3)-eigenvalues(1))*autocm
+write(24,*) alpha0, (eigenvalues(4)-eigenvalues(1))*autocm
+close(22)
+close(23)
+close(24)
 end subroutine hamiltonian_eigenvalues
 !==============================================================================!
-subroutine write_out(potential,d,d1,d2,Natoms,x0,NG,alpha0,GH_order,E0)
+subroutine write_out(potential,d,d1,d2,Natoms,x0,NG,alpha0,GH_order,E0,RCN)
 !==============================================================================!
 !Simulation details
 !==============================================================================!
@@ -477,7 +474,7 @@ subroutine write_out(potential,d,d1,d2,Natoms,x0,NG,alpha0,GH_order,E0)
 !==============================================================================!
 implicit none
 integer::d,d1,d2,Natoms,NG,GH_order
-double precision::alpha0,E0,x0(d)
+double precision::alpha0,E0,x0(d),RCN
 character(len=20)::potential
 open(unit=99,file='out')
 write(99,*) 'potential ==> ', potential
@@ -490,6 +487,7 @@ write(99,*) 'alpha0==>', alpha0
 write(99,*) 'GH Order==>', GH_order
 write(99,*) 'E0==>', E0
 write(99,*) 'Initial configuration==> ', x0
+write(99,*) 'RCN==>', RCN
 close(99)
 end subroutine write_out
 !==============================================================================!
