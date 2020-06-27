@@ -1,0 +1,6 @@
+2                   !d2:            subspace dimensionality
+10                  !upper:         upper-bound for square grid
+-10                 !lower:         lower-bound for square grid
+50                  !N_1D:          total points in 1D (Ntotal = N_1D**2)
+TIP4P               !potential:     check "water_potential" subroutine
+cage_tip4p.xyz      !coor_in:       input xyz geometry (minimum configuration)
