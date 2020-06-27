@@ -1,0 +1,4 @@
+2D water potential contour plot
+Input data file: normal_pot.dat
+Output png file: normal.png
+N: 2500
