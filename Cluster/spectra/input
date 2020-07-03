@@ -1,6 +1,10 @@
-3                   !d2
-3                   !NG
-4                   !GH_order
-0.3                 !alpha0
-tip4p               !potential
-1                   !monomer number
+400                 !NG   (number basis functions
+2                   !d2   (subspace dimensionality)
+1000000             !N_MMC_Box      (mmc box iterations)
+10                  !E_cut (kcal/mol)
+50                  !N_1D       (direct product grid points for a single dimension)
+1.2                  !C_LJ       (QRG grid parameter)
+1000000             !N_MMC      (MMC to make QRG)
+10000               !Update MC move criteria
+TIP4P               !potential
+cage_tip4p.xyz      !geometry xyz 

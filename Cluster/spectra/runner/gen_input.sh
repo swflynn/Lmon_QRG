@@ -10,17 +10,19 @@
 #   Author:
 # Shane Flynn
 #==============================================================================!
-mkdir 500
-cd 500
-d2=3;
+mkdir 1000
+cd 1000
+d2=2;
 potential=tip4p;
-NG=500;
+coords=cage_tip4p.xyz;
+grid=grid.dat;
+NG=1000;
 GH_order=4;
 i_alpha=0.0;
-inc=0.1;
-mon_num=1;
+inc=0.01;
 counter=1;
-Ndir=10;
+Ndir=1000;
+monomer=1;
 while [ "$counter" -le "$Ndir" ]; do
   mkdir "$counter"
   cp ../*.xyz "$counter"
@@ -35,10 +37,12 @@ while [ "$counter" -le "$Ndir" ]; do
 #           can't use floating point with bash, use bc instead
 #==============================================================================!
   echo "$potential" >> input
+  echo "$coords" >> input
+  echo "$grid" >> input
   echo "$NG" >> input
   echo "$GH_order" >> input
   echo "$i_alpha+ $counter*$inc" | bc  >> input
-  echo "$mon_num" >> input
+  echo "$monomer" >> input
   cd ..
   counter=`expr "$counter" + 1`;
 done
