@@ -1,0 +1,4 @@
+2D water potential contour plot
+Input potential file: normal_pot.dat
+Input grid file: grid_ini.dat
+number of interpolation evaluations (1d): 400xmin: -40.0, xmax: 40.0, ymin: -40.0, ymax: 40.0

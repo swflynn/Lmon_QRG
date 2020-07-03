@@ -1,0 +1,6 @@
+2                   !d2   (subspace dimensionality)
+40                  !upper bound for square grid
+-40                 !lower bound for square grid
+100                 !N_1D   direct product grid points for a single dimension
+TIP4P               !potential
+cage_tip4p.xyz      !geometry xyz 

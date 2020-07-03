@@ -1,26 +1,13 @@
-#==============================================================================#
-#			      Fortran Compiler/Flags
-#-O0=no optimization,-O3=full optimization
-#==============================================================================#
 FC=gfortran
-#FFLAGS=-O2
-FFLAGS= -g -O0 -Wall -Wextra -pedantic -fcheck=all -fbacktrace
-#==============================================================================#
-#			   	    Targets
-#==============================================================================#
-all: Tip qrg_module qrg_main runner
-#==============================================================================#
+FFLAGS=-O2
+#FFLAGS= -g -O0 -Wall -Wextra -pedantic -fcheck=all -fbacktrace
+all: Tip Lmon main
 Tip:
 	$(FC) $(FFLAGS) -c TIP4P.f90
-#==============================================================================#
-qrg_module:
-	$(FC) $(FFLAGS) -c qrg_Lmon_grid_mod.f90
-#==============================================================================#
-qrg_main:
-	$(FC) $(FFLAGS) -c QRG_Lmon_grid.f90
-#==============================================================================#
-runner:
-	$(FC) $(FFLAGS) TIP4P.o qrg_Lmon_grid_mod.o QRG_Lmon_grid.o -llapack
-#==============================================================================#
+Lmon:
+	$(FC) $(FFLAGS) -c main_Lmon_grid.f90 -llapack
+main:
+	$(FC) $(FFLAGS) main_Lmon_grid.o TIP4P.o -llapack
+
 clean:
-	rm -rf *.o *.mod a.out
+	rm -rf *.o *.mod *.out 
