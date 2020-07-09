@@ -11,7 +11,7 @@
 !Needs LLAPACK to solve the generalized eigenvalue problem
 !==============================================================================!
 !    Modified:
-!30 June 2020
+!6 July 2020
 !    Author:
 !Shane Flynn
 !==============================================================================!
@@ -251,9 +251,11 @@ read(17,*) Natoms
 read(17,*)
 d=3*Natoms
 !==============================================================================!
-allocate(atom_type(Natoms),mass(Natoms),sqrt_mass(d),x0(d),forces(d),alpha(NG))
-allocate(Hess_Mat(d1,d1),omega(d1),U(d1,d1),r(d1,NG),rr(d1),eigenvalues(NG))
-allocate(Smat(NG,NG),Hmat(NG,NG),z(GH_order),w(GH_order),l(d1),r_ij(d1),x(d))
+allocate(atom_type(Natoms),mass(Natoms),sqrt_mass(d),x0(d),x(d),forces(d))
+allocate(Hess_Mat(d1,d1),U(d1,d1),omega(d1),alpha(NG),eigenvalues(NG))
+allocate(Smat(NG,NG),Hmat(NG,NG),z(GH_order),w(GH_order),r(d2,NG),rr(d2),l(d2))
+allocate(r_ij(d2))
+!==============================================================================!
 do i=1,Natoms
   read(17,*) atom_type(i),x0(3*i-2:3*i)                !input is xyz therefore 3
   mass(i)=Atom_mass(atom_type(i))
@@ -276,10 +278,9 @@ call Get_Hessian(Hess_Mat)
 call Mass_Scale_Hessian(Hess_Mat)
 call Frequencies_Scaled_Hess(Hess_mat,omega)
 !==============================================================================!
-r=0                                                           !set (d2+1:d1) = 0
 open(19,file=grid_in)
 do i=1,NG
-  read(19,*) r(1:d2,i)                         !grid is generated in d2 subspace
+  read(19,*) r(:,i)                         !grid is generated in d2 subspace
 enddo
 close(19)
 !==============================================================================!
@@ -326,18 +327,18 @@ do i=1,NG
     V_ij=0d0
     r_ij(:)=(alpha(i)*r(:,i)+alpha(j)*r(:,j))/(alpha(i)+alpha(j))
     l(:)=1
-    do ll=1,GH_order**d
-      do k=1,d1
+    do ll=1,GH_order**d2
+      do k=1,d2
         rr(k)=z(l(k))
       enddo
       rr=r_ij+rr/sqrt(alpha(i)+alpha(j))
       call normal_to_cartesian(rr,x,.true.)
       call water_potential(x,E,forces)
-      do k=1,d1
+      do k=1,d2
         E=E*w(l(k))
       enddo
       V_ij=V_ij+E
-      do k=1,d1
+      do k=1,d2
         l(k)=mod(l(k),float(GH_order))+1
         if(l(k).ne.1) exit
       enddo
