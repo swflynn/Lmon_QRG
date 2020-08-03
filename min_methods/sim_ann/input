@@ -1,0 +1,13 @@
+2                                       !d
+0.2041241 0.18371169                    !omega
+400                                     !Npoints
+11.5                                    !E_cut
+1                                       !c_LJ
+50                                      !N_1D
+1000000                                 !N_MMC_Box
+log                                     !cooling
+0.001                                   !cc
+100000                                  !T_i
+1                                       !T_f
+1000                                    !T_iters
+100                                      !mv_update

@@ -1,11 +1,11 @@
 !=============================================================================80
-!                       QRG Morse Implementation                  !
+!                       QRG Morse Implementation                               !
 !==============================================================================!
-!simple ndmorse implementation for easy testing
+!simple n-d morse implementation for testing simulated annealing.
 !==============================================================================!
 !    Discussion:
 !    Modified:
-!30 June 2020
+!2 August 2020
 !    Author:
 !Shane Flynn
 !==============================================================================!
@@ -26,9 +26,9 @@ implicit none
 !N_MMC_grid           ==>Number of MMC Iterations to optimize QRG
 !MMC_freq             ==>Frequency to update QRG MMC grid mv_cutoff
 !integral_P           ==>Normalization constant for the distribtion P(x)
-!x0(d)                ==>initial cluster configuration
 !c_LJ                 ==>Parameter for q-LJ pseudo-potential
 !E_cut                ==>Energy Cutoff Contour (kcal/mol input)
+!omega                ==>(d) Parameter for Morse Potential
 !==============================================================================!
 !                            Global Variables                                  !
 !==============================================================================!
@@ -59,7 +59,6 @@ function V(x)
 !x              ==>(d) ith particles coordinate x^i_1,..,x^i_d
 !V              ==>evaluate V(x)
 !D_morse        ==>Parameter for Morse Potential
-!omega          ==>(d) Parameter for Morse Potential
 !==============================================================================!
 implicit none
 double precision::x(d),V
@@ -105,7 +104,11 @@ end function Pair_LJ_NRG
 !==============================================================================!
 subroutine T_schedule(cooling,T,cc)
 !==============================================================================!
-!Select a cooling schedule for the simulated annealing
+!Cooling schedule for simulated annealing
+!==============================================================================!
+!cooling      ==>Method for scheduling cooling cycles
+!T            ==>Temperature
+!cc           ==>cooling constant (Assumed to be > 0)
 !==============================================================================!
 implicit none
 double precision::T,cc
@@ -124,7 +127,10 @@ end subroutine T_schedule
 !==============================================================================!
 subroutine linear_cooling(T,cc)
 !==============================================================================!
-!assumes cc>0
+!Linear scale for controling temperature
+!==============================================================================!
+!T            ==>Temperature
+!cc           ==>cooling constant (Assumed to be > 0)
 !==============================================================================!
 implicit none
 double precision::T,cc
@@ -134,7 +140,10 @@ end subroutine linear_cooling
 !==============================================================================!
 subroutine geometric_cooling(T,cc)
 !==============================================================================!
-!assumes 0<cc<1
+!Geometric scale for controling temperature
+!==============================================================================!
+!T            ==>Temperature
+!cc           ==>cooling constant (Assumed to be > 0)
 !==============================================================================!
 implicit none
 double precision::T,cc
@@ -144,7 +153,10 @@ end subroutine geometric_cooling
 !==============================================================================!
 subroutine log_cooling(T,cc)
 !==============================================================================!
-!log cooling to vary T
+!Logarithmic scale for controling temperature
+!==============================================================================!
+!T            ==>Temperature
+!cc           ==>cooling constant (Assumed to be > 0)
 !==============================================================================!
 implicit none
 double precision::T,cc
@@ -159,7 +171,8 @@ use morse_mod
 !==============================================================================!
 implicit none
 character(len=50)::cooling
-integer::N_MMC_box,N_1D,i,j,k,Ntotal,T_iter,counter,accept,reject,out_cut
+integer::N_MMC_box,N_1D,i,j,k,Ntotal,T_iters,counter,accept,total_reject,out_cut
+integer::total_count,total_accept,count_in,mv_update
 double precision::time1,time2,Delta_E,deltae1,dummy,moment,mv_cutoff,t1,T,T_i
 double precision::T_f,cc
 double precision,allocatable,dimension(:)::delr,index1,U_move,rr,r_trial,s,r_i
@@ -172,15 +185,16 @@ read(*,*) d
 allocate(omega(d))
 read(*,*) omega
 read(*,*) Npoints
-read(*,*) N_1D
-read(*,*) N_MMC_box
 read(*,*) E_cut
 read(*,*) c_LJ
+read(*,*) N_1D
+read(*,*) N_MMC_box
+read(*,*) cooling
+read(*,*) cc
 read(*,*) T_i
 read(*,*) T_f
-read(*,*) T_iter
-read(*,*) cc
-read(*,*) cooling
+read(*,*) T_iters
+read(*,*) mv_update
 !==============================================================================!
 allocate(r(d,Npoints),Uij(Npoints,Npoints),r_i(d),delr(d),index1(d))
 allocate(U_move(Npoints),rr(d),r_trial(d),s(d))
@@ -204,12 +218,9 @@ do i=1,N_MMC_box
     enddo
   endif
 enddo
-!write(*,*) 'test 1'
 !==============================================================================!
 !Compute Integral P with square grid         P(x)~Area_Square/N sum_n=1,N P(x_n)
-!direct grids get huge, only write if you are dubugging.
 !==============================================================================!
-!open(20,File='direct_grid.dat')
 Moment=0.
 Ntotal=(N_1D+1)**d
 index1=0
@@ -226,17 +237,12 @@ do i=1,Ntotal
   r_i(:)=rmin(:)+index1(:)*delr(:)
   dummy=P(r_i)
   Moment=Moment+dummy
-!  if(V.lt.E_cut) write(20,*) r_i
 enddo
 dummy=1./N_1D**d
 do j=1,d
   dummy=dummy*(rmax(j)-rmin(j))
 enddo
 integral_P=dummy*Moment
-!close(20)
-
-!write(*,*) 'test 2'
-!write(*,*) 'integral p', integral_P
 !==============================================================================!
 !           Generate initial distribution to then convert to a QRG
 !==============================================================================!
@@ -263,29 +269,33 @@ do i=2,Npoints
     Uij(j,i)=Uij(i,j)
   enddo
 enddo
-!write(*,*) 'test 3'
 !==============================================================================!
 !                           Generate QRG (simulated annealing)
 !==============================================================================!
 deltae1=0
 T=T_i
+total_count=0         !total number of iterations
+total_accept=0         !total number of iterations
+total_reject=0         !total number of iterations
+count_in=0            !total iterations inside Ecut
 counter=0
 accept=0
-reject=0
-!open(25,File='rejects.dat')
-do while (T > T_f)
-  do i=1,T_iter
+mv_cutoff=1d0
+do while(T>T_f)
+  do i=1,T_iters
+    total_count=total_count+1
     counter=counter+1
-    k=random_integer(1,Npoints)                               !Select Atom to Move
+    k=random_integer(1,Npoints)                             !Select Atom to Move
     call random_number(s)
-    rr=r(:,k)+(2*s-1)                       !random number (0,1), make it (-1,1)
-    if(V(rr).lt.E_cut) then                            !Only consider if V(trial)<Ecut
+    rr=r(:,k)+mv_cutoff*(2*s-1)           !Scale by mv_cutoff to change accept %
+    if(V(rr).lt.E_cut) then                !Only consider trial if V(trial)<Ecut
+      count_in=count_in+1
       U_move(k)=P(rr)
       Delta_E=0d0
       do j=1,Npoints
         if(j.ne.k) then
           U_move(j)=Pair_LJ_NRG(r(:,j),rr)
-          Delta_E=Delta_E+Uij(j,k)-U_move(j)      !Energy change due to trial move
+          Delta_E=Delta_E+Uij(j,k)-U_move(j)    !Energy change due to trial move
         endif
       enddo
       call random_number(t1)
@@ -296,15 +306,23 @@ do while (T > T_f)
         r(:,k)=rr(:)
         deltae1=deltae1+Delta_E
       else
-        reject=reject+1
-!        write(25,*) T, reject
+        total_reject=total_reject+1
+      endif
+      if(mod(i,mv_update)==0)then                            !update move cutoff
+        if(dble(accept)/counter.lt.0.5)then
+          mv_cutoff=mv_cutoff*0.9
+        else
+          mv_cutoff=mv_cutoff*1.1
+        endif
+        total_accept=total_accept+accept
+        accept=0
+        counter=0
       endif
     endif
   enddo
   call T_schedule(cooling,T,cc)
 enddo
-!close(25)
-out_cut = counter-(accept+reject)
+out_cut=total_count-count_in    !points generated outside Ecut due to trial move
 open(22,File='grid.dat')
 do i=1,Npoints
   write(22,*) r(:,i)
@@ -327,11 +345,14 @@ write(99,*) 'c_LJ ==> ',c_LJ
 write(99,*) 'N_MMC_box ==> ',N_MMC_box
 write(99,*) 'Initial Temperature ==> ', T_i
 write(99,*) 'Final Temperature ==> ', T_f
-write(99,*) '# moves outside Ecut==> ', out_cut, float(out_cut)/float(counter)*100.
-write(99,*) 'Iterations per Temperature ==> ', T_iter
-write(99,*) 'Total number of iterations ==> ', counter
-write(99,*) 'Total number of accepted moves ==> ', accept, float(accept)/float(counter-out_cut)*100.
-write(99,*) 'Total number of rejected moves ==> ', reject, float(reject)/float(counter-out_cut)*100.
+write(99,*) '# of Iterations per Temperature ==> ', T_iters
+write(99,*) 'Total # of iterations ==> ', total_count
+write(99,*) '# of trial moves outside Ecut==> ', out_cut, &
+  float(out_cut)/float(total_count)*100., '%'
+write(99,*) 'Total number of accepted moves ==> ', total_accept, &
+  float(total_accept)/float(total_count-out_cut)*100., '%'
+write(99,*) 'Total number of rejected moves ==> ', total_reject, &
+  float(total_reject)/float(total_count-out_cut)*100., '%'
 write(99,*) 'Simulation Time==> ',time2-time1
 close(99)
 end program main_grid
