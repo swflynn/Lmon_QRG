@@ -1,0 +1,4 @@
+ Initial Temperature ==>    1000.0000000000000     
+ Final Temperature ==>    1.0000000000000000     
+ # of Iterations per Temperature ==>         1000
+ Total # of iterations ==>      1111000
