@@ -1,10 +1,8 @@
 !=============================================================================80
 !                       QRG Morse Implementation                  !
 !==============================================================================!
-!simple ndmorse implementation for easy testing
-!need to get this working fast, should move to github as an old branch
+!simple ndmorse implementation for testing greedy minimization
 !==============================================================================!
-!    Discussion:
 !    Modified:
 !30 June 2020
 !    Author:
@@ -27,9 +25,9 @@ implicit none
 !N_MMC_grid           ==>Number of MMC Iterations to optimize QRG
 !MMC_freq             ==>Frequency to update QRG MMC grid mv_cutoff
 !integral_P           ==>Normalization constant for the distribtion P(x)
-!x0(d)                ==>initial cluster configuration
 !c_LJ                 ==>Parameter for q-LJ pseudo-potential
 !E_cut                ==>Energy Cutoff Contour (kcal/mol input)
+!omega                ==>(d) Parameter for Morse Potential
 !==============================================================================!
 !                            Global Variables                                  !
 !==============================================================================!
@@ -110,7 +108,8 @@ program main_grid
 use morse_mod
 !==============================================================================!
 implicit none
-integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k,Ntotal
+integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k,Ntotal,t_acc
+integer::t_rej,out_cut
 double precision::time1,time2,Delta_E,deltae1,dummy,moment,mv_cutoff
 double precision,allocatable,dimension(:)::delr,index1,U_move,rr,r_trial,s,r_i
 double precision,allocatable,dimension(:,:)::Uij
@@ -151,7 +150,6 @@ do i=1,N_MMC_box
     enddo
   endif
 enddo
-!write(*,*) 'test 1'
 !==============================================================================!
 !Compute Integral P with square grid         P(x)~Area_Square/N sum_n=1,N P(x_n)
 !direct grids get huge, only write if you are dubugging.
@@ -181,9 +179,6 @@ do j=1,d
 enddo
 integral_P=dummy*Moment
 !close(20)
-
-!write(*,*) 'test 2'
-!write(*,*) 'integral p', integral_P
 !==============================================================================!
 !           Generate initial distribution to then convert to a QRG
 !==============================================================================!
@@ -210,7 +205,6 @@ do i=2,Npoints
     Uij(j,i)=Uij(i,j)
   enddo
 enddo
-!write(*,*) 'test 3'
 !==============================================================================!
 !                             Generate QRG (greedy search)
 !==============================================================================!
@@ -218,17 +212,16 @@ accept=0
 counter=0
 mv_cutoff=0.01
 deltae1=0
+out_cut=0
+t_acc=0
+t_rej=0
 do i=1,N_MMC_grid
-!  write(*,*) 'i==>', i
   k=random_integer(1,Npoints)                               !Select Atom to Move
   call random_number(s)
   rr=r(:,k)+mv_cutoff*(2*s-1)               !random number (0,1), make it (-1,1)
-!  write(*,*) 'rr', rr
-!  write(*,*) 'V(rr)', V(rr)
   if(V(rr).lt.E_cut) then                            !Only consider if V(trial)<Ecut
     counter=counter+1
     U_move(k)=P(rr)
-!    write(*,*) 'P(rr)', P(rr)
     Delta_E=0d0
     do j=1,Npoints
       if(j.ne.k) then
@@ -236,14 +229,18 @@ do i=1,N_MMC_grid
         Delta_E=Delta_E+Uij(j,k)-U_move(j)      !Energy change due to trial move
       endif
     enddo
-!    write(*,*) 'Delta E', Delta_E
     if(Delta_E.ge.0d0)then
+      t_acc=t_acc+1
       Uij(:,k)=U_move(:)
       Uij(k,:)=U_move(:)
       accept=accept+1
       r(:,k)=rr(:)
       deltae1=deltae1+Delta_E
+    else
+      t_rej=t_rej+1
     endif
+  else
+    out_cut=out_cut+1
   endif
 !for MMC want acceptance ~30-50%, adjust trial movement displacement accordingly
   if(mod(i,MMC_freq)==0)then
@@ -279,6 +276,9 @@ write(99,*) 'c_LJ ==> ',c_LJ
 write(99,*) 'N_MMC_box ==> ',N_MMC_box
 write(99,*) 'N_MMC_grid ==> ',N_MMC_grid
 write(99,*) 'MMC_freq ==> ',MMC_freq
+write(99,*) '# moves outside Ecut==> ', out_cut, float(out_cut)/float(N_MMC_grid)*100.
+write(99,*) 'Total number of accepted moves ==> ', t_acc, float(t_acc)/float(N_MMC_grid-out_cut)*100.
+write(99,*) 'Total number of rejected moves ==> ', t_rej, float(t_rej)/float(N_MMC_grid-out_cut)*100.
 write(99,*) 'Simulation Time==> ',time2-time1
 close(99)
 end program main_grid
