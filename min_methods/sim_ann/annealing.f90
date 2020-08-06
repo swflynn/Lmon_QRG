@@ -3,7 +3,6 @@
 !==============================================================================!
 !simple n-d morse implementation for testing simulated annealing.
 !==============================================================================!
-!    Discussion:
 !    Modified:
 !2 August 2020
 !    Author:
