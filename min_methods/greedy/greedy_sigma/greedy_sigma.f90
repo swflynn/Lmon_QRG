@@ -1,12 +1,12 @@
 !=============================================================================80
 !                       QRG Morse Implementation                  !
 !==============================================================================!
-!simple ndmorse implementation for testing greedy minimization
-!implement move cutoff that scales wrt sigma
-!points in different regions should move differently (not uniform)
+!implement move cutoff that scales wrt sigma.
+!for d<4 uses LJ(12,6), otherwise general formula
+!writes grid to screen at each move cutoff update
 !==============================================================================!
 !    Modified:
-!5 August 2020
+!30 June 2020
 !    Author:
 !Shane Flynn
 !==============================================================================!
@@ -101,7 +101,11 @@ sigma1=c_LJ*(P(x1)*Npoints)**(-1./d)
 sigma2=c_LJ*(P(x2)*Npoints)**(-1./d)
 b=(sigma2**2/a)
 a=(sigma1**2/a)
-Pair_LJ_NRG=a**(d+9)-a**(d+3)+b**(d+9)-b**(d+3)
+if(d.lt.3) then
+    Pair_LJ_NRG=(a**2-a+b**2-b)
+else
+    Pair_LJ_NRG=a**(d+9)-a**(d+3)+b**(d+9)-b**(d+3)
+endif
 end function Pair_LJ_NRG
 !==============================================================================!
 function sigma_local(x1)
@@ -124,8 +128,9 @@ program main_grid
 use morse_mod
 !==============================================================================!
 implicit none
-integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k,Ntotal
-integer::total_accept,total_reject,out_cut
+integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k,l,Ntotal
+integer::total_accept,total_reject,out_cut,my_size
+integer,allocatable::seed(:)
 double precision::time1,time2,Delta_E,dummy,moment,mv_cutoff
 double precision,allocatable,dimension(:)::delr,index1,U_move,rr,r_trial,s,r_i
 double precision,allocatable,dimension(:,:)::Uij
@@ -147,6 +152,13 @@ read(*,*) MMC_freq
 allocate(r(d,Npoints),Uij(Npoints,Npoints),r_i(d),delr(d),index1(d))
 allocate(U_move(Npoints),rr(d),r_trial(d),s(d))
 !==============================================================================!
+!Set seed for random number generator (make it reproducible)
+!==============================================================================!
+call random_seed(size=my_size)
+allocate(seed(my_size))
+seed=my_size+1          !for gfortran seed must be larger than size, simple fix
+call random_seed(put=seed)
+!==============================================================================!
 !                     Box Size for normalizing P (MMC)
 !==============================================================================!
 integral_P=1d0                                     !Initially set to 1 to call P
@@ -156,7 +168,7 @@ rmax=r_i
 mv_cutoff=0.1
 do i=1,N_MMC_box
   call random_number(s)
-  r_trial=r_i+mv_cutoff*(2*s-1)     !trial move (-1,1), random numbers are (0,1)
+  r_trial=r_i+mv_cutoff*(2*s-1) !Make trial move (-1,1), not (0,1)
   call random_number(dummy)                             !MMC acceptance criteria
   if(P(r_trial)/P(r_i).ge.dummy) then
     r_i=r_trial
@@ -265,6 +277,10 @@ do i=1,N_MMC_grid
     endif
   accept=0
   counter=0
+  write(*,*)
+  do l=1,Npoints
+    write(*,*) r(:,l)
+  enddo
   endif
 enddo
 open(22,File='grid.dat')
@@ -295,5 +311,7 @@ write(99,*) 'Total number of accepted moves ==> ', total_accept, &
 write(99,*) 'Total number of rejected moves ==> ', total_reject, &
 float(total_reject)/float(N_MMC_grid-out_cut)*100.
 write(99,*) 'Simulation Time==> ',time2-time1
+write(99,*) 'my_size==> ',my_size
+write(99,*) 'seed==> ',seed
 close(99)
 end program main_grid
