@@ -1,10 +1,14 @@
 !=============================================================================80
-!                       QRG Morse Implementation                  !
+!                           QRG Morse Implementation                  
 !==============================================================================!
-!simple ndmorse implementation for testing greedy minimization
+!simple ndmorse implementation for easy testing
+!==============================================================================!
+!uses J(12,6) if d<4, else uses general formula
+!output the grid to screen at each move_cutoff update
+!seed it manually set to make the box MMC reproducible
 !==============================================================================!
 !    Modified:
-!30 June 2020
+!9 August 2020
 !    Author:
 !Shane Flynn
 !==============================================================================!
@@ -25,9 +29,9 @@ implicit none
 !N_MMC_grid           ==>Number of MMC Iterations to optimize QRG
 !MMC_freq             ==>Frequency to update QRG MMC grid mv_cutoff
 !integral_P           ==>Normalization constant for the distribtion P(x)
+!x0(d)                ==>initial cluster configuration
 !c_LJ                 ==>Parameter for q-LJ pseudo-potential
 !E_cut                ==>Energy Cutoff Contour (kcal/mol input)
-!omega                ==>(d) Parameter for Morse Potential
 !==============================================================================!
 !                            Global Variables                                  !
 !==============================================================================!
@@ -85,6 +89,7 @@ end function random_integer
 function Pair_LJ_NRG(x1,x2)
 !==============================================================================!
 !quasi-Lennard Jones pairwise energy between grid points
+!if small d (i.e. less than 4, use LJ(12,6) else use general formula
 !==============================================================================!
 !x1             ==>(d) ith atoms coordinates
 !x2             ==>(d) jth atoms coordinates
@@ -99,7 +104,11 @@ sigma1=c_LJ*(P(x1)*Npoints)**(-1./d)
 sigma2=c_LJ*(P(x2)*Npoints)**(-1./d)
 b=(sigma2**2/a)
 a=(sigma1**2/a)
-Pair_LJ_NRG=a**(d+9)-a**(d+3)+b**(d+9)-b**(d+3)
+if (d .lt. 4) then
+    Pair_LJ_NRG=(a**2-a+b**2-b)
+else
+    Pair_LJ_NRG=a**(d+9)-a**(d+3)+b**(d+9)-b**(d+3)
+endif
 end function Pair_LJ_NRG
 !==============================================================================!
 end module morse_mod
@@ -108,8 +117,9 @@ program main_grid
 use morse_mod
 !==============================================================================!
 implicit none
-integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k,Ntotal,t_acc
-integer::t_rej,out_cut
+integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k,l,Ntotal,t_acc
+integer::t_rej,out_cut,my_size
+integer,allocatable::seed(:)
 double precision::time1,time2,Delta_E,deltae1,dummy,moment,mv_cutoff
 double precision,allocatable,dimension(:)::delr,index1,U_move,rr,r_trial,s,r_i
 double precision,allocatable,dimension(:,:)::Uij
@@ -121,15 +131,22 @@ read(*,*) d
 allocate(omega(d))
 read(*,*) omega
 read(*,*) Npoints
+read(*,*) E_cut
+read(*,*) c_LJ
 read(*,*) N_1D
 read(*,*) N_MMC_box
 read(*,*) N_MMC_grid
 read(*,*) MMC_freq
-read(*,*) E_cut
-read(*,*) c_LJ
 !==============================================================================!
 allocate(r(d,Npoints),Uij(Npoints,Npoints),r_i(d),delr(d),index1(d))
 allocate(U_move(Npoints),rr(d),r_trial(d),s(d))
+!==============================================================================!
+!Set seed for random number generator (make it reproducable)
+!==============================================================================!
+call random_seed(size=my_size)          !determine your compilers size, see seed
+allocate(seed(my_size))
+seed=my_size+1          !for gfortran seed must be larger than size, simple fix
+call random_seed(put=seed)
 !==============================================================================!
 !                     Box Size for normalizing P (MMC)
 !==============================================================================!
@@ -244,7 +261,7 @@ do i=1,N_MMC_grid
   endif
 !for MMC want acceptance ~30-50%, adjust trial movement displacement accordingly
   if(mod(i,MMC_freq)==0)then
-    if(dble(accept)/counter.lt.0.3)then
+    if(dble(accept)/counter.lt.0.4)then
       mv_cutoff=mv_cutoff*0.9
     else
       mv_cutoff=mv_cutoff*1.1
@@ -252,6 +269,10 @@ do i=1,N_MMC_grid
   accept=0
   counter=0
   deltae1=0
+    write(*,*) 
+    do l=1,Npoints
+        write(*,*) r(:,l)
+    enddo
   endif
 enddo
 open(22,File='grid.dat')
@@ -279,6 +300,8 @@ write(99,*) 'MMC_freq ==> ',MMC_freq
 write(99,*) '# moves outside Ecut==> ', out_cut, float(out_cut)/float(N_MMC_grid)*100.
 write(99,*) 'Total number of accepted moves ==> ', t_acc, float(t_acc)/float(N_MMC_grid-out_cut)*100.
 write(99,*) 'Total number of rejected moves ==> ', t_rej, float(t_rej)/float(N_MMC_grid-out_cut)*100.
+write(99,*) 'my_size ==> ', my_size
+write(99,*) 'seed ==> ', seed
 write(99,*) 'Simulation Time==> ',time2-time1
 close(99)
 end program main_grid
