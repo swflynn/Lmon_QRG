@@ -241,6 +241,7 @@ mv_cutoff=1.
 out_cut=0
 total_accept=0
 total_reject=0
+open(77,File='trajectory.dat')
 do i=1,N_MMC_grid
   k=random_integer(1,Npoints)                               !Select Atom to Move
   call random_number(s)
@@ -276,12 +277,13 @@ do i=1,N_MMC_grid
     endif
   accept=0
   counter=0
-  write(*,*)
+  write(77,*)
   do l=1,Npoints
-    write(*,*) r(:,l)
+    write(77,*) r(:,l)
   enddo
   endif
 enddo
+close(77)
 open(22,File='grid.dat')
 do i=1,Npoints
   write(22,*) r(:,i)
