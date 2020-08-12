@@ -1,0 +1,19 @@
+ d ==>            2
+ Box Dimensions==>  -3.3044200184252892        12.237639583756289     
+ Box Dimensions==>  -3.6974459246596356        18.085936497992787     
+ integral_P ==>    746.97732504144528     
+ E_cut ==>    11.500000000000000     
+ N_1D ==>           50
+ Npoints ==>          100
+ c_LJ ==>    1.5000000000000000     
+ N_MMC_box ==>      1000000
+ N_MMC_grid ==>        10000
+ MMC_freq ==>          100
+ # moves outside Ecut==>           56  0.560000002    
+ Total number of accepted moves ==>         2981   29.9778767    
+ Total number of rejected moves ==>         6963   70.0221252    
+ Simulation Time==>   0.37524399999999997     
+ my_size==>           33
+ seed==>           34
+ x0==>    0.0000000000000000        0.0000000000000000     
+ P_max==>    1.5395380307376713E-002

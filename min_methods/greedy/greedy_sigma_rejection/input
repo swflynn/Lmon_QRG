@@ -1,9 +1,9 @@
 2                                       !d
 0.2041241 0.18371169                    !omega
-1000                                     !Npoints
+100                                     !Npoints
 11.5                                    !E_cut
 1.5                                       !c_LJ
 50                                      !N_1D
 1000000                                 !N_MMC_Box
-1000000                                 !N_MMC_grid
-1000                                    !MMC_freq (on the order of Npoints)
+10000                                 !N_MMC_grid
+100                                    !MMC_freq (on the order of Npoints)
