@@ -1,3 +1,5 @@
 Currently using greedy search algorithm, want to look into different approaches. 
-Currnelty  just testing things out here, may or may not keep
+
+Probably dont need to keep these methods.
+Greedy search with rejection to make the initial distribution seems to be the best course of action. 
 
