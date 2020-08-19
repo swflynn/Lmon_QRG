@@ -144,14 +144,16 @@ do i=1,N_MMC_box
         if(rmax(j).lt.r_i(j)) rmax(j)=r_i(j)
      enddo
   endif
-  if(mod(i,MMC_freq)==0)then
-    if(dble(accept)/MMC_freq.lt.0.5)then
-      mv_cutoff=mv_cutoff*0.9
-    else
-      mv_cutoff=mv_cutoff*1.1
-    endif
-    accept=0
-  endif
+!Be careful modifying mv_cutoff, potential boundry is not infinity can enter 
+!unphysical regions if you search too aggressivly 
+!  if(mod(i,MMC_freq)==0)then
+!    if(dble(accept)/MMC_freq.lt.0.5)then
+!      mv_cutoff=mv_cutoff*0.9
+!    else
+!      mv_cutoff=mv_cutoff*1.1
+!    endif
+!    accept=0
+!  endif
 enddo
 !==============================================================================!
 !Compute Integral P with square grid         P(x)~Area_Square/N sum_n=1,N P(x_n)
