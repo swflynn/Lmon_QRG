@@ -1,0 +1,8 @@
+3                   !d2   (subspace dimensionality)
+TIP4P               !potential
+cage_tip4p.xyz      !geometry xyz
+grid.dat            !grid_in
+1000                !NG   (number basis functions
+4                   !GH_order
+1.5                 !alpha0
+1                   !monomer
