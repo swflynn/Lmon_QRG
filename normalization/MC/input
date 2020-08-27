@@ -1,0 +1,7 @@
+2                   !d2:            subspace dimensionality
+10                  !E_cut:         Energy Cutoff (kcal/mol)
+1.5                 !C_LJ:          QRG grid parameter (order of 1)
+1000000                !N_MMC_Box:     mmc box iterations
+10                  !N_1D:          direct product grid points (per dimension)
+TIP4P               !potential:     Water Potential
+cage_tip4p.xyz      !coord_in:      Minimum configuration for the system (xyz)
