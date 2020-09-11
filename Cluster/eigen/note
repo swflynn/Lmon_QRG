@@ -1,0 +1,2 @@
+Check to see if eigenvectors are orthonormal
+(test to see if eigenvector index is (i,:) or (:,i)
