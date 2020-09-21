@@ -1,0 +1,8 @@
+3                   !d2   (subspace dimensionality)
+MBPOL               !potential
+cage1_mbpol.xyz      !geometry xyz
+grid.dat            !grid_in
+700                 !NG   (number basis functions
+4                   !GH_order
+0.7                 !alpha0
+1                   !monomer

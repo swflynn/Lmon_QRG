@@ -1,0 +1,436 @@
+!=================20==================40==================60==================80
+!           QRG_Lmon(d2) RoVibrational EigenSpectra/Intensity using DGB
+!==============================================================================!
+!Vibrational EigenSpectra calculations for a given potentials QRG
+!Generates a DGB for a monomer in a water cluster using the Lmon approximation.
+!Using the MBPOL PES and Dipole surface to get eigenvalues and intensity
+!Basis Functions:
+!             phi(r):=(2*alpha_i/pi)^(d/4)*exp[-alpha_i(r-r_i)^2]
+!Generates alpha (inverse gaussian width i.e. small alpha=broad gaussian)
+!using nearest neighbor (assumes a Quasi-Regular Grid as input)
+!Needs gen_hermite_rule.f90 code (Gauss-Hermite-Quadriture) for potential eval.
+!Needs LLAPACK to solve the generalized eigenvalue problem
+!==============================================================================!
+!    Modified:
+!6 July 2020
+!    Author:
+!Shane Flynn
+!==============================================================================!
+module QRG_Lmon_Spectra
+implicit none
+!==============================================================================!
+!potential            ==>Potential name
+!NG                   ==>Number of Gaussians to generate
+!d                    ==>Coordinate dimensionality (x^i=x_1,x_2,...x_d)
+!d1                   ==>Monomer Space := 9 for warer
+!d2                   ==>Monomer Subspace Lmon-d2
+!r(d2,Npoints)        ==>All grid points coordinates (x^i=x_1,x_2,...x_d)
+!V_i                  ==>Potential Energy evaluation V(x_i)
+!x0(d)                ==>initial cluster configuration
+!U(d1,d1)             ==>Normal mode eigenvectors
+!==============================================================================!
+!                            Global Parameters                                 !
+!==============================================================================!
+double precision,parameter::bohr=0.52917721092
+double precision,parameter::autocm=2.194746313D5
+double precision,parameter::autokcalmol=627.5096
+double precision,parameter::melectron=1822.88839
+double precision,parameter::Hmass=1.00782503223*melectron
+double precision,parameter::Omass=15.99491461957*melectron
+integer,parameter::d1=9
+!==============================================================================!
+!                            Global Variables                                  !
+!==============================================================================!
+integer::Natoms,NG,d,d2
+character(len=2),allocatable::atom_type(:)
+character(len=20)::potential
+double precision,allocatable::sqrt_mass(:),mass(:),x0(:),U(:,:)
+!==============================================================================!
+contains
+!==============================================================================!
+function Atom_Mass(atom)
+!==============================================================================!
+!Compute mass of each atom (assumes water as input)
+!==============================================================================!
+implicit none
+double precision::Atom_Mass
+character(len=2)::atom
+if(atom=='H'.or.atom=='h')then
+  Atom_mass=Hmass
+elseif(atom=='O'.or.atom=='o')then
+  Atom_mass=Omass
+else
+  write(*,*) 'atom ', atom, ' is not recognized'
+  stop 'Check Atom_Mass Function'
+endif
+end function Atom_Mass
+!==============================================================================!
+subroutine water_potential(x,V,forces)
+!==============================================================================!
+!To call the water potentials you need to pass in the number of water atoms in
+!the system. d=3*Natoms, Nmol=Natoms/3 ==> d/9=Nmol
+!==============================================================================!
+!x(d)               ==>coordinates
+!V                  ==>Potential Energy evaluation V(x)
+!forces(d)          ==>Forces from potential
+!==============================================================================!
+use iso_c_binding
+implicit none
+double precision::x(d),V,forces(d)
+!==============================================================================!
+if(potential=='mbpol'.or.potential=='MBPOL') then
+  call calcpotg(d/d1, V, x*bohr, forces)
+  forces=-forces*bohr/autokcalmol
+  V=V/autokcalmol
+else
+  stop 'Cannot Identify Potential/Dipole Surface, Check "potentials" Subroutine'
+endif
+end subroutine water_potential
+!==============================================================================!
+subroutine normal_to_cartesian(r_i,x,flag)
+!==============================================================================!
+!r_i(1:d2)    ==>x(1:d)     flag=.true.
+!x(1:d)       ==>r_i(1:d2)  flag=.false.
+!==============================================================================!
+!x0(d)        ==>initial cluster configuration
+!r_i(d2)      ==>coordinate we want to evaluate the potential at
+!x(d)         ==>scaled coordinate (cartesian space) to call potential with
+!==============================================================================!
+implicit none
+integer::i
+double precision::x(d),r_i(d2),rr(d1)
+logical::flag
+if(flag) then
+  rr=0
+  do i=1,d2
+    rr(1:d1)=rr(1:d1)+U(1:d1,i)*r_i(i)
+  enddo
+  x(1:d)=x0(1:d)
+  x(1:d1)=x(1:d1)+rr(1:d1)/sqrt_mass(1:d1)
+else
+  rr=(x(1:d1)-x0(1:d1))*sqrt_mass(1:d1)  !cartesian-->mass-scaled coordinates
+  r_i(1:d2)=0
+  do i=1,d2
+    r_i(i)=r_i(i)+sum(U(:,i)*rr(:))      !mass-scaled coordinates-->normal modes
+  enddo
+endif
+end subroutine normal_to_cartesian
+!==============================================================================!
+subroutine Get_Hessian(Hess_Mat)
+!==============================================================================!
+!Numerically evaluate the Hessian
+!==============================================================================!
+!potential          ==>potential name
+!d                  ==>Total System Dimensionality  (d:=3*Natoms)
+!x0(d)              ==>Initial Configuration (entire system)
+!force(d)           ==>Forces from potential
+!E0                 ==>Potential Energy of x0
+!s                  ==>Perturbation Parameter
+!Hess_Mat(d1,d1)      ==>Numerical Hessian
+!==============================================================================!
+implicit none
+integer::i,j
+double precision::Hess_Mat(d1,d1),x1(d),force0(d),force1(d),E0
+double precision,parameter::ss=1d-6
+x1=x0
+call water_potential(x1,E0,force0)
+do i=1,d1
+  x1(i)=x0(i)+ss
+  call water_potential(x1,E0,force1)
+  x1(i)=x0(i)
+  do j=1,d1
+    Hess_Mat(i,j)=(force0(j)-force1(j))/ss
+  enddo
+enddo
+end subroutine Get_Hessian
+!==============================================================================!
+subroutine Mass_Scale_Hessian(Hess_Mat)
+!==============================================================================!
+!Symmetrize and Mass-Scale the Hessian
+!==============================================================================!
+!d                  ==>Total System Dimensionality  (d:=3*Natoms)
+!Hess_Mat(d,d)      ==>Numerical Hessian
+!sqrt_mass(d)       ==>Square Root Mass
+!==============================================================================!
+implicit none
+integer::i,j
+double precision::Hess_Mat(d1,d1)
+!==============================================================================!
+do i=1,d1
+  do j=1,i
+    if(i.ne.j) Hess_Mat(i,j)=(Hess_Mat(i,j)+Hess_Mat(j,i))/2
+    Hess_Mat(i,j)=Hess_Mat(i,j)/(sqrt_mass(i)*sqrt_mass(j))
+    if(i.ne.j) Hess_Mat(j,i)=Hess_Mat(i,j)
+    enddo
+enddo
+end subroutine Mass_Scale_Hessian
+!==============================================================================!
+subroutine reverse(N,A)
+!==============================================================================!
+! Reverse the elements in array A(N)
+!==============================================================================!
+integer::N,i
+double precision::A(N),temp
+do i=1,N/2
+  temp=A(i)
+  A(i)=A(N-i+1)
+  A(N-i+1)=temp
+enddo
+end subroutine reverse
+!==============================================================================!
+subroutine Frequencies_Scaled_Hess(Hess_mat,omega)
+!==============================================================================!
+!Compute Eigenvalues and Eigenvectors for the mass-scaled hessian
+!Uses the LLAPACK real symmetric eigen-solver (dsygev)
+!==============================================================================!
+!d                  ==>Total System Dimensionality  (d:=3*Natoms)
+!Hess_Mat(d1,d1)    ==>Numerical Hessian
+!omega(d)           ==>Eigenvalues
+!U(d,d)             ==>Eigenvectors
+!     LLAPACK(dsyev):
+!v                  ==>Compute both Eigenvalues and Eigenvectors
+!u                  ==>Use Upper-Triangle of matrix
+!Lwork              ==>Allocation size
+!==============================================================================!
+implicit none
+integer::i,info,Lwork
+double precision::Hess_mat(d1,d1),omega(d1)
+double precision,allocatable::work(:)
+Lwork=max(1,3*d1-1)
+allocate(work(max(1,Lwork)))
+U=Hess_mat
+call dsyev('v','u',d1,U,d1,omega,work,Lwork,info)
+!==============================================================================!
+!                   sqrt hessian matrix eigenvalues
+!==============================================================================!
+do i=1,d1
+  if(omega(i)<0d0) write(*,*) 'Warning:  lambda(',i,')=',omega(i)
+  omega(i)=sign(sqrt(abs(omega(i))),omega(i))
+enddo
+!==============================================================================!
+!Subspace Needs Largest Eigenvalues: llapack outputs small to large ==>re-order
+!==============================================================================!
+call reverse(d1,omega)
+do i=1,d1
+  call reverse(d1,U(i,:))
+enddo
+open(18,File='freq_scaled_hess.dat')
+do i=1,d1
+  write(18,*) omega(i), 'normalized = 1?', sum(U(:,i)**2)
+enddo
+close(18)
+end subroutine Frequencies_Scaled_Hess
+!==============================================================================!
+end module QRG_Lmon_Spectra
+!==============================================================================!
+program main_spectra
+use QRG_Lmon_Spectra
+!==============================================================================!
+implicit none
+character(len=50)::grid_in,coord_in
+character(len=1)::JOBZ,UPLO                                             !llapack
+integer::monomer,Lwork,GH_order,info,i,j,k,ll,itype,m,n
+double precision::E0,E,alpha0,V_ij,r2,a_ij,time1,time2,mu(3),dummy(3),Intensity
+double precision,allocatable,dimension(:)::forces,omega,alpha,eigenvalues,z,w,rr
+double precision,allocatable,dimension(:)::r_ij,l,work,x
+double precision,allocatable,dimension(:,:)::Hess_Mat,Smat,Hmat,r
+double precision,parameter::pi=4.*atan(1d0)
+double precision,allocatable,dimension(:,:,:)::Mumat
+call cpu_time(time1)
+!==============================================================================!
+!                             Read Input Data File
+!==============================================================================!
+read(*,*) d2
+read(*,*) potential
+read(*,*) coord_in
+read(*,*) grid_in
+read(*,*) NG
+read(*,*) GH_order
+read(*,*) alpha0
+read(*,*) monomer               !which monomer in the cluster you are looking at
+!==============================================================================!
+!                                  Read xyz
+!==============================================================================!
+open(17,file=coord_in)
+read(17,*) Natoms
+read(17,*)
+d=3*Natoms
+!==============================================================================!
+allocate(atom_type(Natoms),mass(Natoms),sqrt_mass(d),x0(d),x(d),forces(d))
+allocate(Hess_Mat(d1,d1),U(d1,d1),omega(d1),alpha(NG),eigenvalues(NG))
+allocate(Smat(NG,NG),Hmat(NG,NG),z(GH_order),w(GH_order),r(d2,NG),rr(d2),l(d2))
+allocate(r_ij(d2),Mumat(3,NG,NG))
+!==============================================================================!
+do i=1,Natoms
+  read(17,*) atom_type(i),x0(3*i-2:3*i)                !input is xyz therefore 3
+  mass(i)=Atom_mass(atom_type(i))
+  sqrt_mass(3*i-2:3*i)=sqrt(mass(i))
+enddo
+close(17)
+!==============================================================================!
+!        Input coordinates are in angstroms, convert to atomic units
+!==============================================================================!
+x0=x0/bohr
+open(18,File='cluster_initial.dat')
+write(18,*) 'x0 in atomic units (xo/bohr)', x0
+call water_potential(x0,E0,forces)
+write(18,*) 'E0 (atomic) ==> ', E0
+write(18,*) 'E0 (cm-1) ==> ', E0*autocm
+write(18,*) 'E0 (kcal/mol) ==> ', E0*autokcalmol
+close(18)
+!==============================================================================!
+call Get_Hessian(Hess_Mat)
+call Mass_Scale_Hessian(Hess_Mat)
+call Frequencies_Scaled_Hess(Hess_mat,omega)
+!==============================================================================!
+open(19,file=grid_in)
+do i=1,NG
+  read(19,*) r(:,i)                         !grid is generated in d2 subspace
+enddo
+close(19)
+!==============================================================================!
+!         Symmetric gaussians. Use nearest neighbor to determine alpha
+!==============================================================================!
+do i=1,NG
+  alpha(i)=1d20                          !large distance for initial placeholder
+  do j=1,NG
+    if(j.ne.i) then
+      r2=sum((r(:,i)-r(:,j))**2)                    !distance between gridpoints
+      if(r2<alpha(i)) alpha(i)=r2
+    endif
+  enddo
+  alpha(i)=alpha0/alpha(i)
+enddo
+open(unit=20,file='alphas.dat')
+do i=1,NG
+  write(20,*) alpha(i)
+enddo
+close(20)
+!==============================================================================!
+!Compute Hamiltonian Matrix. Gauss-Hermite quadrature for potential
+!==============================================================================!
+call cgqf(GH_order,6,0d0,0d0,0d0,1d0,z,w)                                   !GHQ
+w=w/sqrt(pi)
+!==============================================================================!
+Mumat=0d0
+do i=1,NG
+  do j=i,NG
+    a_ij=alpha(i)*alpha(j)/(alpha(i)+alpha(j))
+    r2=sum((r(:,i)-r(:,j))**2)
+!==============================================================================!
+!               Compute i-jth element of the overlap matrix
+!==============================================================================!
+    Smat(i,j)=(2.*sqrt(alpha(i)*alpha(j))/(alpha(i)+alpha(j)))**(0.5*d2)&
+    *exp(-a_ij*r2)
+    Smat(j,i)=Smat(i,j)                   !Pass Full Smat to compute Eigenvalues
+!==============================================================================!
+!              Compute i-jth element of the kinetic matrix
+!==============================================================================!
+    Hmat(i,j)=a_ij*(d2-2.*a_ij*r2)
+!==============================================================================!
+!              Compute Potential Energy with Quadrature
+!==============================================================================!
+    V_ij=0d0
+    r_ij(:)=(alpha(i)*r(:,i)+alpha(j)*r(:,j))/(alpha(i)+alpha(j))
+    l(:)=1
+    do ll=1,GH_order**d2
+      do k=1,d2
+        rr(k)=z(l(k))
+      enddo
+      rr=r_ij+rr/sqrt(alpha(i)+alpha(j))
+      call normal_to_cartesian(rr,x,.true.)
+      call water_potential(x,E,forces)
+      call calcdip(d/d1,x,mu)                !d1=9: water monomer dimensionality
+      do k=1,d2
+        E=E*w(l(k))
+      enddo
+      V_ij=V_ij+E
+      Mumat(:,i,j)=Mumat(:,i,j)+mu
+      do k=1,d2
+        l(k)=mod(l(k),float(GH_order))+1
+        if(l(k).ne.1) exit
+      enddo
+    enddo
+    Hmat(i,j)=(Hmat(i,j)+V_ij)*Smat(i,j)
+    Hmat(j,i)=Hmat(i,j)
+  enddo
+enddo
+!==============================================================================!
+!         Compute Eigenvalues and Eigenvectors for the Hamiltonian matrix
+!==============================================================================!
+!Uses the LLAPACK real generalized symmetric-definite eigen-solver (dsygv)
+!Computes ALL eigenvalues and optionally eigenvectors
+!==============================================================================!
+!ITYPE:     ==>Specifies the General Eigenvalue problem type:
+!              1: A*x=lambda*B*x    2: A*B*x=lambda*x     3: B*A*x=lambda*x
+!JOBZ:      ==>'N': Compute Eigenvalues   'V':Eigenvalues and Eigenvectors
+!UPLO:      ==>'U': Store Upper-Triangle  'L':Lower Triangle of Matricies
+!ITYPE      ==>If JOBZ='V' and INFO=0, the eigenvectors (Z) are stored in matrix
+!           A; eigenvectors are normalized according to ITYPE:
+!              1 or 2:  Z**T*B*Z = I;  3: Z**T*inv(B)*Z = I
+!INFO       ==> 0 if successfully exit,
+!           INFO<0 ==ith argument has illegal value; INFO>0 see error codes
+!==============================================================================!
+Lwork=max(1,3*NG-1)                                          !LLAPACK Suggestion
+allocate(work(max(1,Lwork)))                                 !LLAPACK Suggestion
+ITYPE=1
+JOBZ='V'
+UPLO='U'
+call dsygv(itype,JOBZ,UPLO,NG,Hmat,NG,Smat,NG,eigenvalues,work,Lwork,info)
+open(unit=22,file='eigenvalues_atomic.dat')
+open(unit=23,file='eigenvalues_cm-1.dat')
+open(unit=24,file='fundamentals_cm-1.dat')
+open(unit=25,file='alpha_100_atomic.dat')
+open(unit=26,file='alpha_100_cm-1.dat')
+do i=1,NG
+  write(22,*) eigenvalues(i)
+  write(23,*) eigenvalues(i)*autocm
+  write(25,*) alpha0, eigenvalues(i)
+  write(26,*) alpha0, eigenvalues(i)*autocm
+enddo
+write(24,*) alpha0, (eigenvalues(2)-eigenvalues(1))*autocm
+write(24,*) alpha0, (eigenvalues(3)-eigenvalues(1))*autocm
+write(24,*) alpha0, (eigenvalues(4)-eigenvalues(1))*autocm
+write(24,*) alpha0, (eigenvalues(5)-eigenvalues(1))*autocm
+close(22)
+close(23)
+close(24)
+!==============================================================================!
+!           Compute Intensity (eigenvectors stored as columns)
+!==============================================================================!
+open(unit=25,file='spectra.dat')
+do i=1,NG
+  if((eigenvalues(i)-eigenvalues(1))*autocm .gt. 8000) exit
+  dummy=0
+  do n=1,NG
+    do m=1,NG
+      dummy(:)=dummy(:)+Hmat(n,1)*Hmat(m,i)*Mumat(:,n,m)
+    enddo
+  enddo
+  Intensity=sum(dummy(:)**2)*(eigenvalues(i)-eigenvalues(1))
+!write redundant values to make stick plot convenient for xmgrace, can remove
+  write(25,*) (eigenvalues(i)-eigenvalues(1))*autocm, 0.
+  write(25,*) (eigenvalues(i)-eigenvalues(1))*autocm, Intensity
+  write(25,*) (eigenvalues(i)-eigenvalues(1))*autocm, 0.
+enddo
+close(25)
+!==============================================================================!
+!                               Out File
+!==============================================================================!
+call cpu_time(time2)
+open(99,file='out')
+write(99,*) 'Simulation Time==> ',time2-time1
+write(99,*) 'd ==> ', d
+write(99,*) 'd1 ==> ', d1
+write(99,*) 'd2 ==> ', d2
+write(99,*) 'potential ==> ', potential
+write(99,*) 'Number of atoms==> ', Natoms
+write(99,*) 'Number of Gaussians==> ', NG
+write(99,*) 'alpha0==>', alpha0
+write(99,*) 'GH Order==>', GH_order
+write(99,*) 'E0==>', E0
+write(99,*) 'Initial configuration==> ', x0
+write(99,*) 'Monomer Number==> ', monomer
+close(99)
+!==============================================================================!
+end program main_spectra
