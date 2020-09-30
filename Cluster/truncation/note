@@ -1,0 +1,4 @@
+needs tip4p.f90 
+(testing using tip can generalize potential after)
+
+gen_hermite_rule.f90 for the quadriture
