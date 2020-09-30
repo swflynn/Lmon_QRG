@@ -1,0 +1,10 @@
+3               !d2
+TIP4P           !potential
+cage_tip4p.xyz  !coord_in
+grid.dat        !grid_in
+1000            !NG
+3               !GH_default
+1               !GH_replace
+0.5             !alpha0
+1               !monomer
+0.1             !cutoff
