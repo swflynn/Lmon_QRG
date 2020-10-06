@@ -9,9 +9,10 @@
 !using nearest neighbor (assumes a Quasi-Regular Grid as input)
 !Needs gen_hermite_rule.f90 code (Gauss-Hermite-Quadriture) for potential eval.
 !Needs LLAPACK to solve the generalized eigenvalue problem
+!This code uses MBPOL to compute the eigenvalues
 !==============================================================================!
 !    Modified:
-!6 July 2020
+!6 October 2020
 !    Author:
 !Shane Flynn
 !==============================================================================!
@@ -76,10 +77,14 @@ subroutine water_potential(x,V,forces)
 use iso_c_binding
 use TIP4P_module
 implicit none
-double precision::x(d),forces(d),V
+double precision::x(d),V,forces(d)
 !==============================================================================!
 if(potential=='tip4p'.or.potential=='TIP4P') then
-  call TIP4P(d/9,x,V,forces)
+  call TIP4P(d/d1,x,V,forces)
+else if(potential == 'mbpol' .or. potential == 'MBPOL') then
+  call calcpotg(d/d1,V,x*bohr,forces)
+  forces=-forces*bohr/autokcalmol
+  V=V/autokcalmol
 else
   stop 'Cannot Identify Potential, Check "potentials" Subroutine'
 endif
@@ -98,7 +103,7 @@ implicit none
 integer::i
 double precision::x(d),r_i(d2),rr(d1)
 logical::flag
-if(flag) then
+if(flag)then
   rr=0
   do i=1,d2
     rr(1:d1)=rr(1:d1)+U(1:d1,i)*r_i(i)
@@ -123,8 +128,8 @@ subroutine Get_Hessian(Hess_Mat)
 !x0(d)              ==>Initial Configuration (entire system)
 !force(d)           ==>Forces from potential
 !E0                 ==>Potential Energy of x0
-!s                  ==>Perturbation Parameter
-!Hess_Mat(d1,d1)      ==>Numerical Hessian
+!ss                 ==>Perturbation Parameter
+!Hess_Mat(d1,d1)    ==>Numerical Hessian
 !==============================================================================!
 implicit none
 integer::i,j
@@ -165,7 +170,7 @@ end subroutine Mass_Scale_Hessian
 !==============================================================================!
 subroutine reverse(N,A)
 !==============================================================================!
-! Reverse the elements in array A(N)
+!Reverse the elements in array A(N)
 !==============================================================================!
 integer::N,i
 double precision::A(N),temp
@@ -185,7 +190,7 @@ subroutine Frequencies_Scaled_Hess(Hess_mat,omega)
 !Hess_Mat(d1,d1)    ==>Numerical Hessian
 !omega(d)           ==>Eigenvalues
 !U(d,d)             ==>Eigenvectors
-!     LLAPACK(dsyev):
+!   LLAPACK(dsyev):
 !v                  ==>Compute both Eigenvalues and Eigenvectors
 !u                  ==>Use Upper-Triangle of matrix
 !Lwork              ==>Allocation size
@@ -317,7 +322,7 @@ do i=1,NG
 !==============================================================================!
     Smat(i,j)=(2.*sqrt(alpha(i)*alpha(j))/(alpha(i)+alpha(j)))**(0.5*d2)&
     *exp(-a_ij*r2)
-    Smat(j,i)=Smat(i,j)                   !Pass Full Smat to compute Eigenvalues
+    Smat(j,i)=Smat(i,j)                   !Need Full Smat to compute Eigenvalues
 !==============================================================================!
 !              Compute i-jth element of the kinetic matrix
 !==============================================================================!
