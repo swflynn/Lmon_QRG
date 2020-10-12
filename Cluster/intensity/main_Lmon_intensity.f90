@@ -230,9 +230,10 @@ implicit none
 character(len=50)::grid_in,coord_in
 character(len=1)::JOBZ,UPLO                                             !llapack
 integer::monomer,Lwork,GH_order,info,i,j,k,ll,itype,m,n
+integer,allocatable,dimension(:)::l
 double precision::E0,E,alpha0,V_ij,r2,a_ij,time1,time2,mu(3),dummy(3),Intensity
 double precision,allocatable,dimension(:)::forces,omega,alpha,eigenvalues,z,w,rr
-double precision,allocatable,dimension(:)::r_ij,l,work,x
+double precision,allocatable,dimension(:)::r_ij,work,x
 double precision,allocatable,dimension(:,:)::Hess_Mat,Smat,Hmat,r
 double precision,parameter::pi=4.*atan(1d0)
 double precision,allocatable,dimension(:,:,:)::Mumat
@@ -347,7 +348,7 @@ do i=1,NG
       V_ij=V_ij+E
       Mumat(:,i,j)=Mumat(:,i,j)+mu
       do k=1,d2
-        l(k)=mod(l(k),float(GH_order))+1
+        l(k)=mod(l(k),GH_order)+1
         if(l(k).ne.1) exit
       enddo
     enddo
