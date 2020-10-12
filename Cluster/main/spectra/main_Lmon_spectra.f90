@@ -232,9 +232,10 @@ use QRG_Lmon_Spectra
 implicit none
 character(len=50)::grid_in,coord_in
 integer::monomer,Lwork,GH_order,info,i,j,k,ll,itype
+integer,allocatable,dimension(:)::l
 double precision::E0,E,alpha0,V_ij,r2,a_ij,time1,time2
 double precision,allocatable,dimension(:)::forces,omega,alpha,eigenvalues,z,w,rr
-double precision,allocatable,dimension(:)::r_ij,l,work,x
+double precision,allocatable,dimension(:)::r_ij,work,x
 double precision,allocatable,dimension(:,:)::Hess_Mat,Smat,Hmat,r
 double precision,parameter::pi=4.*atan(1d0)
 call cpu_time(time1)
@@ -345,7 +346,7 @@ do i=1,NG
       enddo
       V_ij=V_ij+E
       do k=1,d2
-        l(k)=mod(l(k),float(GH_order))+1
+        l(k)=mod(l(k),GH_order)+1
         if(l(k).ne.1) exit
       enddo
     enddo
