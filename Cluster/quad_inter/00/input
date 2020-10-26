@@ -1,0 +1,7 @@
+3                   !d2
+TIP4P               !potential
+cage_tip4p.xyz      !coord_in 
+grid.dat            !grid_in
+1000                !NG
+3                   !GH_order 
+1.0                 !alpha_0

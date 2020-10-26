@@ -1,0 +1,4 @@
+needs the TIP4P.f90 potential surface
+needs the gen_hermite_rule.f90 quadrature code.
+
+
