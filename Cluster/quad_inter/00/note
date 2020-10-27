@@ -1,4 +1,8 @@
+Computes the vibrational eigenspectra in the Lmon-QRG context
+Uses a combination of quadrature and quadratic interpolation
+to compute the potential (quadrature more accuract/costly 
+suggested for diagonal elements)
+Quadratic interpolation can be computed with/without gradient
+
 needs the TIP4P.f90 potential surface
 needs the gen_hermite_rule.f90 quadrature code.
-
-
