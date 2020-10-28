@@ -1,0 +1,10 @@
+300                 !Npoints:       number of points
+2                   !d2:            subspace dimensionality
+10                  !E_cut:         Energy Cutoff (kcal/mol)
+1.5                 !C_LJ:          QRG grid parameter (order of 1)
+1000000             !N_MMC_Box:     mmc box iterations
+50                  !N_1D:          direct product grid points (per dimension)
+100000               !N_MMC_Grid:    MMC iterations to make the QRG
+1000                 !MMC_freq:      Frequency to update MMC move cutoff
+TIP4P               !potential:     Water Potential
+cage_tip4p.xyz      !coord_in:      Minimum configuration for the system (xyz)

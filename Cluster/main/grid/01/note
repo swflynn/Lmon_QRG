@@ -1,0 +1,4 @@
+Needs TIP4P.f90 and/or MBPOL PES surface (no dipole)
+
+need to make another option for quasi-MC integration
+make box a single subroutine

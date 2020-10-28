@@ -1,0 +1,20 @@
+ d ==>           54
+ d1 ==>            9
+ d2 ==>            2
+ potential ==> TIP4P               
+ Box Dimensions==>  -29.595736904495119        19.045536374379342     
+ Box Dimensions==>  -34.285122369869583        20.338110159560145     
+ integral_P ==>    112.30405332569373     
+ E_cut ==>    1.5936011622083475E-002
+ N_1D ==>           50
+ Npoints ==>          300
+ Ntotal==>                  2601
+ c_LJ ==>    1.5000000000000000     
+ N_MMC_box ==>      1000000
+ N_MMC_grid ==>       100000
+ MMC_freq ==>         1000
+ Pmax==>    8.6059114252614070E-004
+ # moves outside Ecut==>          184  0.184000000    
+ Total number of accepted moves ==>        26238   26.2863674    
+ Total number of rejected moves ==>        73578   73.7136307    
+ Simulation Time==>    18.997563000000000     
