@@ -397,9 +397,8 @@ use QRG_Lmon_Grid
 implicit none
 character(len=50)::coord_in
 integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k
-integer::my_size,total_accept,total_reject,out_cut
+integer::total_accept,total_reject,out_cut
 integer(kind=8)::Ntotal,ii
-integer,allocatable::seed(:)
 double precision::E0,V,time1,time2,Delta_E,dummy,moment,mv_cutoff
 double precision,allocatable,dimension(:)::forces,omega,rmin,rmax,x1,r_i
 double precision,allocatable,dimension(:)::delr,index1,U_move,r_trial,s
@@ -459,13 +458,6 @@ close(18)
 call Get_Hessian(Hess_Mat)
 call Mass_Scale_Hessian(Hess_Mat)
 call Frequencies_Scaled_Hess(Hess_mat,omega)
-!==============================================================================!
-!Set seed for random number generator (make it reproducible)
-!==============================================================================!
-call random_seed(size=my_size)
-allocate(seed(my_size))
-seed=my_size+1                           !gfortran seed must be larger than size
-call random_seed(put=seed)                        !seed must be an integer array
 call domain_size_P(rmin,rmax,N_MMC_box)
 !==============================================================================!
 !Compute Integral P with square grid         P(x)~Area_Square/N sum_n=1,N P(x_n)
