@@ -8,3 +8,4 @@
 1000                 !MMC_freq:      Frequency to update MMC move cutoff
 TIP4P               !potential:     Water Potential
 cage_tip4p.xyz      !coord_in:      Minimum configuration for the system (xyz)
+uniform_grid        !norm_method    method for normalizing P

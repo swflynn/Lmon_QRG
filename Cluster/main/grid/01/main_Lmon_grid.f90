@@ -8,12 +8,12 @@
 !Reduces the number of calls to the potential which is the most expensive part
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !For now removing mbpol for convenient testing
-!make a subroutine for getting the box size
 !make a subroutine for normalizing
+!fix documentation make consistent with quad_inter code on github
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !of the code
 !    Modified:
-!12 August 2020
+!27 October 2020
 !    Author:
 !Shane Flynn
 !==============================================================================!
@@ -31,7 +31,7 @@ implicit none
 !E_cut                ==>Distribution cutoff contour (Kcal/mol input)
 !rmin(d)              ==>Minimum of normalization box size
 !rmax(d)              ==>Maximum of normalization box size
-!N_1D                 ==>Number of points in 1 dimension for computing integral_P
+!N_evals              ==>Number of evaluations for computing integral_P
 !N_MMC_box            ==>Number of MMC Iterations to determine box-size
 !c_LJ                 ==>Parameter for q-LJ pseudo-potential
 !N_MMC_grid           ==>Number of MMC Iterations to optimize QRG
@@ -336,58 +336,72 @@ do i=1,N_MMC_box
      enddo
   endif
 enddo
-!write(*,*) 'my_size==> ',my_size
-!write(*,*) 'seed==> ',seed(1)
 end subroutine domain_size_P
 !==============================================================================!
-!!!subroutine compute_integral_P(potential,d,V_i,E_cut,xmin,xmax,N_1D,integral_P)
-!!!!==============================================================================!
-!!!!Use a (uniform) square grid to integrate P(x)
-!!!!Box size for the grid is determined in the box_size subroutine
-!!!!int P(x)~Area_Square/N sum_n=1,N P(x_n)
-!!!!This subroutine Computes integral_P
-!!!!==============================================================================!
-!!!!potential          ==>Potential name
-!!!!d                  ==>Coordinate dimensionality (x^i=x_1,x_2,...x_d)
-!!!!V_i                ==>Potential Energy evaluation V(x_i)
-!!!!E_cut              ==>Distribution cutoff contour
-!!!!xmin(d)            ==>Minimum of normalization box size
-!!!!xmax(d)            ==>Maximum of normalization box size
-!!!!N_1D               ==>Number of points in 1 dimension for computing integral_P
-!!!!integral_P         ==>Normalization constant for the distribtion P(x)
-!!!!Ntotal             ==>Total number of evaluations for all dimensions
-!!!!Moment             ==>First Moment for the distribution
-!!!!==============================================================================!
-!!!integer::d,N_1D,i,j,index1(d),Ntotal
-!!!double precision::r(d),Moment,dummy,delx(d),E_cut,integral_P,xmin(d),xmax(d),V_i
-!!!character(len=10)::potential
-!!!!==============================================================================!
-!!!open(unit=55,file='direct_grid.dat')
-!!!Moment=0.
-!!!Ntotal=(N_1D+1)**d
-!!!index1=0
-!!!delx(:)=(xmax(:)-xmin(:))/N_1D
-!!!do i=1,Ntotal
-!!!  do j=1,d
-!!!    if(index1(j).eq.N_1D) then
-!!!      index1(j)=0
-!!!    else
-!!!      index1(j)=index1(j)+1
-!!!      exit
-!!!    endif
-!!!  enddo
-!!!  r(:)=xmin(:)+index1(:)*delx(:)
-!!!  dummy=P_i(potential,d,r,V_i,E_cut,integral_P)
-!!!  Moment=Moment+dummy
-!!!  if(V_i<E_cut) write(55,*) r
-!!!enddo
-!!!dummy=1./N_1D**d
-!!!do j=1,d
-!!!  dummy=dummy*(xmax(j)-xmin(j))
-!!!enddo
-!!!integral_P=dummy*Moment
-!!!close(55)
-!!!end subroutine compute_integral_P
+subroutine normalize_P(norm_method,rmin,rmax,Nevals)
+!==============================================================================!
+!Normalization becomes more significant in higher dimension, without a well-
+!defined well the grid could become increasingly large.
+!==============================================================================!
+!norm_method        ==>Integration method to normalize p
+!==============================================================================!
+implicit none
+character(len=20)::norm_method
+integer::Nevals
+double precision::rmin(d2),rmax(d2)
+!==============================================================================!
+if(norm_method=='uniform_grid'.or.norm_method=='UNIFORM_GRID')then
+  call uniform_grid(rmin,rmax,Nevals)
+!else
+!if(norm_method=='uniform_grid'.or.norm_method=='UNIFORM_GRID')then
+!  call calcpotg(d/9, V, x*bohr, forces)
+!  forces=-forces*bohr/autokcalmol
+!  V=V/autokcalmol
+else
+  stop 'Cannot Identify Normalization Method, Check "normalize_P" Subroutine'
+endif
+end subroutine normalize_P
+!==============================================================================!
+subroutine uniform_grid(rmin,rmax,N_1D)
+!==============================================================================!
+!Compute Integral P with a uniform (square) grid (scales expotentially)
+!P(x)~Area_Square/N sum_n=1,N P(x_n)
+!==============================================================================!
+!integral_P         ==>Normalization constant for the distribtion P(x)
+!Ntotal             ==>Total number of evaluations for all dimensions
+!Moment             ==>First Moment for the distribution
+!==============================================================================!
+integer::N_1D,Ntotal,i,j
+double precision::index1(d2),delr(d2),rmin(d2),rmax(d2),r_i(d2),V,x(d)
+double precision::moment,dummy
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!open(20,File='direct_grid.dat')
+Moment=0.
+Ntotal=(N_1D+1)**d2
+index1=0
+delr(:)=(rmax(:)-rmin(:))/N_1D
+do i=1,Ntotal
+  do j=1,d2
+    if(index1(j).eq.N_1D) then
+      index1(j)=0
+    else
+      index1(j)=index1(j)+1
+      exit
+    endif
+  enddo
+  r_i(:)=rmin(:)+index1(:)*delr(:)
+  Moment=Moment+P_i(r_i,V,x)
+!  if(V.lt.E_cut) write(20,*) r_i
+enddo
+dummy=1./N_1D**d2
+do j=1,d2
+  dummy=dummy*(rmax(j)-rmin(j))
+enddo
+integral_P=dummy*Moment
+!close(20)
+end subroutine uniform_grid
 !==============================================================================!
 end module QRG_Lmon_Grid
 !==============================================================================!
@@ -396,17 +410,14 @@ use QRG_Lmon_Grid
 !==============================================================================!
 implicit none
 character(len=50)::coord_in
-integer::N_MMC_box,N_1D,N_MMC_grid,MMC_freq,accept,counter,i,j,k
+character(len=20)::norm_method
+integer::N_MMC_box,N_evals,N_MMC_grid,MMC_freq,accept,counter,i,j,k
 integer::total_accept,total_reject,out_cut
-integer(kind=8)::Ntotal,ii
-double precision::E0,V,time1,time2,Delta_E,dummy,moment,mv_cutoff
-double precision,allocatable,dimension(:)::forces,omega,rmin,rmax,x1,r_i
-double precision,allocatable,dimension(:)::delr,index1,U_move,r_trial,s
-double precision,allocatable,dimension(:)::force0,force1,x
-double precision,allocatable,dimension(:,:)::Hess_Mat,Uij
+double precision::E0,V,time1,time2,Delta_E,dummy,mv_cutoff
 double precision::sigma_trial,E_total,Pmax,P_trial
-double precision,allocatable,dimension(:)::r0
-double precision,allocatable,dimension(:)::sigma
+double precision,allocatable,dimension(:)::forces,omega,rmin,rmax,x1,r_i,r0,x,s
+double precision,allocatable,dimension(:)::U_move,r_trial,sigma,force0,force1
+double precision,allocatable,dimension(:,:)::Hess_Mat,Uij
 !==============================================================================!
 !                              Read Input File                                 !
 !==============================================================================!
@@ -416,11 +427,12 @@ read(*,*) d2
 read(*,*) E_cut                                        !should be kcal/mol input
 read(*,*) c_LJ
 read(*,*) N_MMC_box
-read(*,*) N_1D
+read(*,*) N_evals
 read(*,*) N_MMC_grid
 read(*,*) MMC_freq
 read(*,*) potential
 read(*,*) coord_in
+read(*,*) norm_method
 !==============================================================================!
 !                                  Read xyz
 !==============================================================================!
@@ -431,7 +443,7 @@ d=3*Natoms
 !==============================================================================!
 allocate(atom_type(Natoms),mass(Natoms),sqrt_mass(d),x0(d),x1(d),forces(d))
 allocate(rmin(d2),rmax(d2),Hess_Mat(d1,d1),omega(d1),U(d1,d1),r(d2,Npoints))
-allocate(Uij(Npoints,Npoints),r_i(d2),delr(d2),index1(d2),x(d))
+allocate(Uij(Npoints,Npoints),r_i(d2),x(d))
 allocate(U_move(Npoints),r_trial(d2),s(d2),force0(d),force1(d))
 allocate(sigma(Npoints),r0(d2))
 do i=1,Natoms
@@ -459,34 +471,7 @@ call Get_Hessian(Hess_Mat)
 call Mass_Scale_Hessian(Hess_Mat)
 call Frequencies_Scaled_Hess(Hess_mat,omega)
 call domain_size_P(rmin,rmax,N_MMC_box)
-!==============================================================================!
-!Compute Integral P with square grid         P(x)~Area_Square/N sum_n=1,N P(x_n)
-!direct grid scales expotentially, only write to file if needed
-!==============================================================================!
-!open(20,File='direct_grid.dat')
-Moment=0.
-Ntotal=(N_1D+1)**d2
-index1=0
-delr(:)=(rmax(:)-rmin(:))/N_1D
-do ii=1,Ntotal
-  do j=1,d2
-    if(index1(j).eq.N_1D) then
-      index1(j)=0
-    else
-      index1(j)=index1(j)+1
-      exit
-    endif
-  enddo
-  r_i(:)=rmin(:)+index1(:)*delr(:)
-  Moment=Moment+P_i(r_i,V,x)
-!  if(V.lt.E_cut) write(20,*) r_i
-enddo
-dummy=1./N_1D**d2
-do j=1,d2
-  dummy=dummy*(rmax(j)-rmin(j))
-enddo
-integral_P=dummy*Moment
-!close(20)
+call normalize_P(norm_method,rmin,rmax,N_evals)!for uniform call with N_1D
 !==============================================================================!
 !Use Rejection to generate the initial distribution
 !==============================================================================!
@@ -585,9 +570,8 @@ do i=1,d2
 enddo
 write(99,*) 'integral_P ==> ',integral_P
 write(99,*) 'E_cut ==> ',E_cut
-write(99,*) 'N_1D ==> ',N_1D
+write(99,*) 'N_evals==> ',N_evals
 write(99,*) 'Npoints ==> ',Npoints
-write(99,*) 'Ntotal==> ',Ntotal
 write(99,*) 'c_LJ ==> ',c_LJ
 write(99,*) 'N_MMC_box ==> ',N_MMC_box
 write(99,*) 'N_MMC_grid ==> ',N_MMC_grid
