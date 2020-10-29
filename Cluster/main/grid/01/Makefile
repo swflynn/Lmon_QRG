@@ -16,7 +16,7 @@ all: grid
 #                               DGB Cluster
 #requires mbpol directory/library to run their surface (mbpol/libmbpol.a)
 #==============================================================================#
-grid: TIP4P.o main_Lmon_grid.o
+grid: TIP4P.o sobol.o main_Lmon_grid.o
 	$(FC) -o $@ $^ -llapack
 #==============================================================================#
 clean:

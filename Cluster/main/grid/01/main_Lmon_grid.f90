@@ -354,6 +354,8 @@ if(norm_method=='uniform_grid'.or.norm_method=='UNIFORM_GRID')then
   call uniform_grid(rmin,rmax,Nevals)
 elseif(norm_method=='monte_carlo'.or.norm_method=='MONTE_CARLO')then
   call monte_carlo(rmin,rmax,Nevals)
+elseif(norm_method=='quasi_mc'.or.norm_method=='QUASI_MC')then
+  call quasi_MC(rmin,rmax,Nevals)
 else
   stop 'Cannot Identify Normalization Method, Check "normalize_P" Subroutine'
 endif
@@ -425,6 +427,55 @@ integral_P=moment
 integral_P=integral_P*dummy
 !==============================================================================!
 end subroutine monte_carlo
+!==============================================================================!
+subroutine sobol_unif(skip,r_unif,rmin,rmax)
+!==============================================================================!
+!Generates a uniform Quasi-Random point spanning rmin-max
+!Uses the Sobol Sequence from sobol.f90 made available by John Burkardt
+!https://people.sc.fsu.edu/~jburkardt/f_src/sobol/sobol.html under GNU LGPL
+!==============================================================================!
+!skip               ==>Seed for the random number generator
+!r_unif(d2)         ==>Uniform Quasi-Random point
+!rmin(d2)           ==>Minimum of normalization box size
+!rmax(d2)           ==>Maximum of normalization box size
+!==============================================================================!
+use sobol
+implicit none
+INTEGER(kind=8)::skip
+double precision::r_unif(d2),rmin(d2),rmax(d2)
+!==============================================================================!
+r_unif=i8_sobol(int(d2, 8), skip)
+r_unif=rmin+r_unif*(rmax-rmin)        !Scale uniform distribution to span domain
+end subroutine sobol_unif
+!==============================================================================!
+subroutine quasi_MC(rmin,rmax,N_evals)
+!==============================================================================!
+!Compute Integral P using quasi-Monte Carlo (quasi-random numbers;Sobol Seq.)
+!==============================================================================!
+!integral_P         ==>Normalization constant for the distribtion P(x)
+!Nevals             ==>Total number of evaluations to approximate the integral
+!Moment             ==>First Moment for the distribution
+!==============================================================================!
+implicit none
+integer::N_evals,i
+INTEGER(kind=8)::skip
+double precision::rmin(d2),rmax(d2),r_trial(d2),V,x(d)
+double precision::moment,dummy
+!==============================================================================!
+moment=0d0               !integral_P must be defined to call P, use new variable
+skip=N_evals
+do i=1,N_evals
+  call sobol_unif(skip,r_trial(:),rmin,rmax)
+  moment=moment+P_i(r_trial,V,x)
+enddo
+dummy=1./N_evals
+do i=1,d2
+  dummy=dummy*(rmax(i)-rmin(i))
+enddo
+integral_P=moment
+integral_P=integral_P*dummy
+!==============================================================================!
+end subroutine quasi_MC
 !==============================================================================!
 end module QRG_Lmon_Grid
 !==============================================================================!
