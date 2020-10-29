@@ -352,11 +352,8 @@ double precision::rmin(d2),rmax(d2)
 !==============================================================================!
 if(norm_method=='uniform_grid'.or.norm_method=='UNIFORM_GRID')then
   call uniform_grid(rmin,rmax,Nevals)
-!else
-!if(norm_method=='uniform_grid'.or.norm_method=='UNIFORM_GRID')then
-!  call calcpotg(d/9, V, x*bohr, forces)
-!  forces=-forces*bohr/autokcalmol
-!  V=V/autokcalmol
+elseif(norm_method=='monte_carlo'.or.norm_method=='MONTE_CARLO')then
+  call monte_carlo(rmin,rmax,Nevals)
 else
   stop 'Cannot Identify Normalization Method, Check "normalize_P" Subroutine'
 endif
@@ -368,15 +365,13 @@ subroutine uniform_grid(rmin,rmax,N_1D)
 !P(x)~Area_Square/N sum_n=1,N P(x_n)
 !==============================================================================!
 !integral_P         ==>Normalization constant for the distribtion P(x)
+!N_1D               ==>Number of evaluations along a single dimension
 !Ntotal             ==>Total number of evaluations for all dimensions
 !Moment             ==>First Moment for the distribution
 !==============================================================================!
 integer::N_1D,Ntotal,i,j
 double precision::index1(d2),delr(d2),rmin(d2),rmax(d2),r_i(d2),V,x(d)
 double precision::moment,dummy
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !open(20,File='direct_grid.dat')
 Moment=0.
 Ntotal=(N_1D+1)**d2
@@ -402,6 +397,34 @@ enddo
 integral_P=dummy*Moment
 !close(20)
 end subroutine uniform_grid
+!==============================================================================!
+subroutine monte_carlo(rmin,rmax,N_evals)
+!==============================================================================!
+!Compute Integral P using Monte Carlo (pseudo-random numbers)
+!==============================================================================!
+!integral_P         ==>Normalization constant for the distribtion P(x)
+!Nevals             ==>Total number of evaluations to approximate the integral
+!Moment             ==>First Moment for the distribution
+!==============================================================================!
+implicit none
+integer::N_evals,i
+double precision::rmin(d2),rmax(d2),r_trial(d2),V,x(d)
+double precision::moment,dummy
+!==============================================================================!
+moment=0d0               !integral_P must be defined to call P, use new variable
+do i=1,N_evals
+  call random_number(r_trial(:))
+  r_trial(:)=rmin(:)+r_trial(:)*(rmax(:)-rmin(:))
+  moment=moment+P_i(r_trial,V,x)
+enddo
+dummy=1./N_evals
+do i=1,d2
+  dummy=dummy*(rmax(i)-rmin(i))
+enddo
+integral_P=moment
+integral_P=integral_P*dummy
+!==============================================================================!
+end subroutine monte_carlo
 !==============================================================================!
 end module QRG_Lmon_Grid
 !==============================================================================!
