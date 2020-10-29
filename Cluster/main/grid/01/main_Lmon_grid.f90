@@ -1,19 +1,14 @@
 !=============================================================================80
-!                       QRG-Lmon Water Monomer Implementation                  !
+!                     QRG-Lmon Water Monomer Implementation                    !
 !==============================================================================!
 !    Discussion:
-!Fortran 90 QRG-Lmon implementation.
 !Generates QRG for a monomer subspace using the Lmon approximation.
-!No longer use attractive terms for grid minimization
-!Reduces the number of calls to the potential which is the most expensive part
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!For now removing mbpol for convenient testing
-!make a subroutine for normalizing
-!fix documentation make consistent with quad_inter code on github
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!of the code
+!QRG generated using repulsive pseudo-potential only
+!Commented out MBPOL for convenient testing
+!Just uncomment water_potential. MBPOL Makefile only tested on linux
+!==============================================================================!
 !    Modified:
-!27 October 2020
+!28 October 2020
 !    Author:
 !Shane Flynn
 !==============================================================================!
@@ -21,26 +16,22 @@ module QRG_Lmon_Grid
 implicit none
 !==============================================================================!
 !potential            ==>Potential name
+!atom_type(Natoms)    ==>Atom name short-hand notation
+!Natoms               ==>Number of atoms (line 1 in xyz file format)
 !Npoints              ==>Number of points to generate
 !d                    ==>Coordinate dimensionality (x^i=x_1,x_2,...x_d)
 !d1                   ==>Monomer Space := 9 for warer
 !d2                   ==>Monomer Subspace Lmon-d2
-!r(d2,Npoints)        ==>All grid points coordinates (x^i=x_1,x_2,...x_d)
-!Uij(Npoints,Npoints) ==>Pairwise energies for all i-j points
-!V_i                  ==>Potential Energy evaluation V(x_i)
-!E_cut                ==>Distribution cutoff contour (Kcal/mol input)
-!rmin(d)              ==>Minimum of normalization box size
-!rmax(d)              ==>Maximum of normalization box size
-!N_evals              ==>Number of evaluations for computing integral_P
-!N_MMC_box            ==>Number of MMC Iterations to determine box-size
-!c_LJ                 ==>Parameter for q-LJ pseudo-potential
-!N_MMC_grid           ==>Number of MMC Iterations to optimize QRG
-!MMC_freq             ==>Frequency to update QRG MMC grid mv_cutoff
-!integral_P           ==>Normalization constant for the distribtion P(x)
-!x0(d)                ==>initial cluster configuration
-!c_LJ                 ==>Parameter for q-LJ pseudo-potential
 !E_cut                ==>Energy Cutoff Contour (kcal/mol input)
+!integral_P           ==>Normalization constant for the distribtion P(x)
+!c_LJ                 ==>Parameter for q-LJ pseudo-potential
+!x0(d)                ==>Initial cluster configuration
+!mass(Natoms)         ==>Atom masses
+!sqrt_mass(d)         ==>Square root atom masses
+!r(d2,Npoints)        ==>All grid points coordinates (x^i=x_1,x_2,...x_d)
 !U(d1,d1)             ==>Normal mode eigenvectors
+!==============================================================================!
+
 !==============================================================================!
 !                            Global Parameters                                 !
 !==============================================================================!
@@ -54,21 +45,22 @@ integer,parameter::d1=9
 !==============================================================================!
 !                            Global Variables                                  !
 !==============================================================================!
-integer::Natoms,Npoints,d,d2
-character(len=2),allocatable::atom_type(:)
 character(len=20)::potential
+character(len=2),allocatable::atom_type(:)
+integer::Natoms,Npoints,d,d2
 double precision::E_cut,integral_P,c_LJ
-double precision,allocatable::sqrt_mass(:),mass(:),x0(:),U(:,:),r(:,:)
+double precision,allocatable,dimension(:)::x0,mass,sqrt_mass
+double precision,allocatable,dimension(:,:)::r,U
 !==============================================================================!
 contains
 !==============================================================================!
 function Atom_Mass(atom)
 !==============================================================================!
-!Compute mass of each atom (assumes water as input)
+!Compute mass of each atom, assumes water as input (H,O only)
 !==============================================================================!
 implicit none
-double precision::Atom_Mass
 character(len=2)::atom
+double precision::Atom_Mass
 if(atom=='H'.or.atom=='h')then
   Atom_mass=Hmass
 elseif(atom=='O'.or.atom=='o')then
@@ -81,12 +73,12 @@ end function Atom_Mass
 !==============================================================================!
 subroutine water_potential(x,V,forces)
 !==============================================================================!
-!To call the water potentials you need to pass in the number of water atoms in
-!the system. d=3*Natoms, Nmol=Natoms/3 ==> d/9=Nmol
+!To call a water potential; need the number of water molecules in the system
+!d=3*Natoms, Nmolecules=Natoms/3 ==> d/9=Nmolecules
 !==============================================================================!
-!x(d)               ==>coordinates
-!V                  ==>Potential Energy evaluation V(x)
-!forces(d)          ==>Forces from potential
+!x(d)                 ==>Cartesian coordinates
+!V                    ==>Potential Energy evaluation V(x)
+!forces(d)            ==>Forces (computed by the PES)
 !==============================================================================!
 use iso_c_binding
 use TIP4P_module
@@ -106,18 +98,20 @@ end subroutine water_potential
 !==============================================================================!
 subroutine normal_to_cartesian(r_i,x,flag)
 !==============================================================================!
-!r_i(1:d2)    ==>x(1:d)     flag=.true.
-!x(1:d)       ==>r_i(1:d2)  flag=.false.
+!Convert normal-mode coordinates to mass-scaled cartesian coordinates
+!The PES must be called using cartesian coordinates
+!if flag==true;     r(1:d2)==>x(1:d)
+!if flag==false;    x(1:d)==>r(1:d2)
 !==============================================================================!
-!x0(d)        ==>initial cluster configuration
-!r_i(d2)      ==>coordinate we want to evaluate the potential at
-!x(d)         ==>scaled coordinate (cartesian space) to call potential with
+!r(d2)                ==>normal mode coordinate
+!x(d)                 ==>mass-scaled cartesian coordinate
 !==============================================================================!
 implicit none
+logical::flag
 integer::i
 double precision::x(d),r_i(d2),rr(d1)
-logical::flag
-if(flag) then
+!==============================================================================!
+if(flag)then
   rr=0
   do i=1,d2
     rr(1:d1)=rr(1:d1)+U(1:d1,i)*r_i(i)
@@ -125,7 +119,7 @@ if(flag) then
   x(1:d)=x0(1:d)
   x(1:d1)=x(1:d1)+rr(1:d1)/sqrt_mass(1:d1)
 else
-  rr=(x(1:d1)-x0(1:d1))*sqrt_mass(1:d1)  !cartesian==>mass-scaled coordinates
+  rr=(x(1:d1)-x0(1:d1))*sqrt_mass(1:d1)     !cartesian==>mass-scaled coordinates
   r_i(1:d2)=0
   do i=1,d2
     r_i(i)=r_i(i)+sum(U(:,i)*rr(:))      !mass-scaled coordinates==>normal modes
@@ -137,18 +131,19 @@ subroutine Get_Hessian(Hess_Mat)
 !==============================================================================!
 !Numerically evaluate the Hessian
 !==============================================================================!
-!potential          ==>potential name
-!d                  ==>Total System Dimensionality  (d:=3*Natoms)
-!x0(d)              ==>Initial Configuration (entire system)
-!force(d)           ==>Forces from potential
-!E0                 ==>Potential Energy of x0
-!s                  ==>Perturbation Parameter
+!potential            ==>potential name
+!d                    ==>Total System Dimensionality  (d:=3*Natoms)
+!x0(d)                ==>Initial Configuration (entire system)
+!force(d)             ==>Forces from potential
+!E0                   ==>Potential Energy of x0
+!s                    ==>Perturbation Parameter
 !Hess_Mat(d1,d1)      ==>Numerical Hessian
 !==============================================================================!
 implicit none
 integer::i,j
 double precision::Hess_Mat(d1,d1),x1(d),force0(d),force1(d),E0
 double precision,parameter::ss=1d-6
+!==============================================================================!
 x1=x0
 call water_potential(x1,E0,force0)
 do i=1,d1
@@ -165,9 +160,9 @@ subroutine Mass_Scale_Hessian(Hess_Mat)
 !==============================================================================!
 !Symmetrize and Mass-Scale the Hessian
 !==============================================================================!
-!d                  ==>Total System Dimensionality  (d:=3*Natoms)
-!Hess_Mat(d,d)      ==>Numerical Hessian
-!sqrt_mass(d)       ==>Square Root Mass
+!d                    ==>Total System Dimensionality  (d:=3*Natoms)
+!Hess_Mat(d1,d1)      ==>Numerical Hessian
+!sqrt_mass(d)         ==>Square Root Mass
 !==============================================================================!
 implicit none
 integer::i,j
@@ -184,10 +179,11 @@ end subroutine Mass_Scale_Hessian
 !==============================================================================!
 subroutine reverse(N,A)
 !==============================================================================!
-! Reverse the elements in array A(N)
+!Reverse the elements in array A(N)
 !==============================================================================!
 integer::N,i
 double precision::A(N),temp
+!==============================================================================!
 do i=1,N/2
   temp=A(i)
   A(i)=A(N-i+1)
@@ -200,20 +196,21 @@ subroutine Frequencies_Scaled_Hess(Hess_mat,omega)
 !Compute Eigenvalues and Eigenvectors for the mass-scaled hessian
 !Uses the LLAPACK real symmetric eigen-solver (dsygev)
 !==============================================================================!
-!d                  ==>Total System Dimensionality  (d:=3*Natoms)
-!Hess_Mat(d,d)      ==>Numerical Hessian
-!omega(d)           ==>Eigenvalues
-!U(d,d)             ==>Eigenvectors
+!sqrt_mass(d)         ==>Square Root Mass
+!Hess_Mat(d1,d1)      ==>Numerical Hessian
+!omega(d)             ==>Eigenvalues
+!U(d,d)               ==>Eigenvectors
 !     LLAPACK(dsyev):
-!v                  ==>Compute both Eigenvalues and Eigenvectors
-!u                  ==>Use Upper-Triangle of matrix
-!Lwork              ==>Allocation size
+!v                    ==>Compute both Eigenvalues and Eigenvectors
+!u                    ==>Use Upper-Triangle of matrix
+!Lwork                ==>Allocation size; LLAPACK Suggetion: Lwork=max(1,3*d1-1)
 !==============================================================================!
 implicit none
 integer::i,info,Lwork
-double precision::Hess_mat(d1,d1),omega(d1)
+double precision::Hess_mat(d1,d1),omega(d1),dummy(d1)
 double precision,allocatable::work(:)
-lwork=max(1,3*d1-1)
+!==============================================================================!
+Lwork=max(1,3*d1-1)
 allocate(work(max(1,Lwork)))
 U=Hess_mat
 call dsyev('v','u',d1,U,d1,omega,work,Lwork,info)
@@ -221,7 +218,7 @@ call dsyev('v','u',d1,U,d1,omega,work,Lwork,info)
 !                   sqrt hessian matrix eigenvalues
 !==============================================================================!
 do i=1,d1
-   if(omega(i)<0d0) write(*,*) 'Warning:  lambda(',i,')=',omega(i)
+  if(omega(i)<0d0) write(*,*) 'Warning:  lambda(',i,')=',omega(i)
   omega(i)=sign(sqrt(abs(omega(i))),omega(i))
 enddo
 !==============================================================================!
@@ -229,7 +226,9 @@ enddo
 !==============================================================================!
 call reverse(d1,omega)
 do i=1,d1
-  call reverse(d1,U(i,:))
+  dummy(:)=U(i,:)
+  call reverse(d1,dummy)
+  U(i,:)=dummy(:)
 enddo
 open(18,File='freq_scaled_hess.dat')
 do i=1,d1
@@ -244,12 +243,9 @@ function P_i(r_i,V,x)
 !B. Poirier, “Algebraically self-consistent quasiclassical approximation on
 !phase space,” Found. Phys. 30, 1191–1226 (2000).
 !==============================================================================!
-!x0(d)              ==>initial cluster configuration
-!r_i(d2)            ==>i-th grid points coordinates (x^i=x_1,x_2,...x_d)
-!V                  ==>Potential Energy evaluation V(x_i)
-!E_cut              ==>Distribution cutoff contour
-!integral_P         ==>Normalization constant for the distribtion P(x)
-!P_i                ==>evaluate P(x)
+!r_i(d2)              ==>i-th grid points coordinates (x^i=x_1,x_2,...x_d)
+!V                    ==>Potential Energy evaluation V(x_i)
+!P_i                  ==>evaluate P(x)
 !==============================================================================!
 implicit none
 double precision::r_i(d2),V,P_i,x(d),forces(d)
@@ -262,11 +258,11 @@ end function P_i
 !==============================================================================!
 function random_integer(Nmin,Nmax)
 !==============================================================================!
-!Randomly generate an integer in the range Nmin-Nmax
+!Pseudo-Randomly generate an integer in the range Nmin-Nmax
 !==============================================================================!
-!Nmin           ==>minimum index value
-!Nmax           ==>maximum index value
-!a              ==>uniform pseudo-random number
+!Nmin                 ==>minimum index value
+!Nmax                 ==>maximum index value
+!a                    ==>uniform pseudo-random number
 !==============================================================================!
 implicit none
 integer::Nmin,Nmax,random_integer
@@ -280,16 +276,16 @@ function Pair_rpl(r_i,r_j,sigma1,sigma2)
 !==============================================================================!
 !Pairwise repulsive energy between grid points (replaced quasi-lennard jones)
 !==============================================================================!
-!x1             ==>(d) ith atoms coordinates
-!x2             ==>(d) jth atoms coordinates
-!r_i            ==>Grid points coordinates (subspace)
-!d2             ==>monomer subspace dimensionality
-!dist           ==>distance between r_i/r_j
-!sigma          ==>Gaussian widths
-!Pair_rpl       ==>Energy of the ith-jth repulsive potential
+!x1                   ==>(d) ith atoms coordinates
+!x2                   ==>(d) jth atoms coordinates
+!r_i                  ==>Grid points coordinates (subspace)
+!dist                 ==>distance between r_i/r_j
+!sigma                ==>Gaussian widths
+!Pair_rpl             ==>Energy of the ith-jth repulsive potential
 !==============================================================================!
 implicit none
 double precision::r_i(d2),r_j(d2),Pair_rpl,sigma1,sigma2,dist
+!==============================================================================!
 dist=sqrt(sum((r_i(:)-r_j(:))**2))
 Pair_rpl=(sigma1/dist)**(d2+9)+(sigma2/dist)**(d2+9)
 end function Pair_rpl
@@ -301,10 +297,9 @@ subroutine domain_size_P(rmin,rmax,N_MMC_box)
 !Be careful about making mv_cutoff large with MMC, PES does not go to infinity
 !the surface may not have a well-defined minimum in higher dimensions
 !==============================================================================!
-!rmin(d2)            ==>Minimum of normalization domain
-!rmax(d2)            ==>Maximum of normalization domain
-!N_MMC_box           ==>Number of MMC Iterations to determine box-size
-!integral_P          ==>Normalization constant for the distribtion; P
+!rmin(d2)             ==>Minimum of normalization domain
+!rmax(d2)             ==>Maximum of normalization domain
+!N_MMC_box            ==>Number of MMC Iterations to determine box-size
 !==============================================================================!
 double precision,parameter::mv_cutoff=0.1
 integer::N_MMC_box,my_size,i,j
@@ -341,9 +336,12 @@ end subroutine domain_size_P
 subroutine normalize_P(norm_method,rmin,rmax,Nevals)
 !==============================================================================!
 !Normalization becomes more significant in higher dimension, without a well-
-!defined well the grid could become increasingly large.
+!defined boundry (well) the grid could become increasingly large.
 !==============================================================================!
-!norm_method        ==>Integration method to normalize p
+!norm_method          ==>Integration method to normalize p
+!rmin(d2)             ==>Minimum of normalization domain
+!rmax(d2)             ==>Maximum of normalization domain
+!Nevals               ==>Total number of evaluations
 !==============================================================================!
 implicit none
 character(len=20)::norm_method
@@ -366,14 +364,16 @@ subroutine uniform_grid(rmin,rmax,N_1D)
 !Compute Integral P with a uniform (square) grid (scales expotentially)
 !P(x)~Area_Square/N sum_n=1,N P(x_n)
 !==============================================================================!
-!integral_P         ==>Normalization constant for the distribtion P(x)
-!N_1D               ==>Number of evaluations along a single dimension
-!Ntotal             ==>Total number of evaluations for all dimensions
-!Moment             ==>First Moment for the distribution
+!rmin(d2)             ==>Minimum of normalization domain
+!rmax(d2)             ==>Maximum of normalization domain
+!N_1D                 ==>Number of evaluations along a single dimension
+!Ntotal               ==>Total number of evaluations (for all dimensions)
+!Moment               ==>First Moment for the distribution
 !==============================================================================!
 integer::N_1D,Ntotal,i,j
 double precision::index1(d2),delr(d2),rmin(d2),rmax(d2),r_i(d2),V,x(d)
 double precision::moment,dummy
+!==============================================================================!
 !open(20,File='direct_grid.dat')
 Moment=0.
 Ntotal=(N_1D+1)**d2
@@ -404,9 +404,10 @@ subroutine monte_carlo(rmin,rmax,N_evals)
 !==============================================================================!
 !Compute Integral P using Monte Carlo (pseudo-random numbers)
 !==============================================================================!
-!integral_P         ==>Normalization constant for the distribtion P(x)
-!Nevals             ==>Total number of evaluations to approximate the integral
-!Moment             ==>First Moment for the distribution
+!rmin(d2)             ==>Minimum of normalization domain
+!rmax(d2)             ==>Maximum of normalization domain
+!Nevals               ==>Total number of evaluations to approximate the integral
+!Moment               ==>First Moment for the distribution
 !==============================================================================!
 implicit none
 integer::N_evals,i
@@ -434,14 +435,14 @@ subroutine sobol_unif(skip,r_unif,rmin,rmax)
 !Uses the Sobol Sequence from sobol.f90 made available by John Burkardt
 !https://people.sc.fsu.edu/~jburkardt/f_src/sobol/sobol.html under GNU LGPL
 !==============================================================================!
-!skip               ==>Seed for the random number generator
-!r_unif(d2)         ==>Uniform Quasi-Random point
-!rmin(d2)           ==>Minimum of normalization box size
-!rmax(d2)           ==>Maximum of normalization box size
+!skip                 ==>Seed for the random number generator
+!r_unif(d2)           ==>Uniform Quasi-Random point
+!rmin(d2)             ==>Minimum of normalization domain
+!rmax(d2)             ==>Maximum of normalization domain
 !==============================================================================!
 use sobol
 implicit none
-INTEGER(kind=8)::skip
+integer(kind=8)::skip
 double precision::r_unif(d2),rmin(d2),rmax(d2)
 !==============================================================================!
 r_unif=i8_sobol(int(d2, 8), skip)
@@ -452,13 +453,15 @@ subroutine quasi_MC(rmin,rmax,N_evals)
 !==============================================================================!
 !Compute Integral P using quasi-Monte Carlo (quasi-random numbers;Sobol Seq.)
 !==============================================================================!
-!integral_P         ==>Normalization constant for the distribtion P(x)
-!Nevals             ==>Total number of evaluations to approximate the integral
-!Moment             ==>First Moment for the distribution
+!skip                 ==>Seed for the random number generator
+!rmin(d2)             ==>Minimum of normalization domain
+!rmax(d2)             ==>Maximum of normalization domain
+!Nevals               ==>Total number of evaluations to approximate the integral
+!Moment               ==>First Moment for the distribution
 !==============================================================================!
 implicit none
 integer::N_evals,i
-INTEGER(kind=8)::skip
+integer(kind=8)::skip
 double precision::rmin(d2),rmax(d2),r_trial(d2),V,x(d)
 double precision::moment,dummy
 !==============================================================================!
@@ -481,6 +484,17 @@ end module QRG_Lmon_Grid
 !==============================================================================!
 program main_grid
 use QRG_Lmon_Grid
+!==============================================================================!
+!coord_in             ==>Water (minimized structure) XYZ filename
+!omega(d1)            ==>Mass-Scaled Hessian eigenvalues
+!Hess_Mat(d1,d1)      ==>Hamiltonian Matrix
+!force(d)             ==>Forces (computed by water potential)
+!Uij(Npoints,Npoints) ==>Pairwise energies for all i-j points
+!V                    ==>Potential Energy evaluation V(x_i)
+!N_evals              ==>Number of evaluations for computing integral_P
+!N_MMC_box            ==>Number of MMC Iterations to determine box-size
+!N_MMC_grid           ==>Number of MMC Iterations to optimize QRG
+!MMC_freq             ==>Frequency to update QRG MMC grid mv_cutoff
 !==============================================================================!
 implicit none
 character(len=50)::coord_in
@@ -588,7 +602,7 @@ do i=1,N_MMC_grid
   call random_number(s)
   r_trial=r(:,k)+mv_cutoff*sigma(k)*(2*s-1)                      !(0,1)==>(-1,1)
   P_trial=P_i(r_trial,V,x)
-  if(P_trial>1d-20) then                            !Only consider if V(trial)<Ecut
+  if(P_trial>1d-20) then                         !Only consider if V(trial)<Ecut
     sigma_trial=c_LJ*(P_trial*Npoints)**(-1./d2)
     Delta_E=0d0
     counter=counter+1
@@ -642,6 +656,7 @@ write(99,*) 'potential ==> ', potential
 do i=1,d2
   write(99,*) 'Box Dimensions==>', rmin(i),rmax(i)
 enddo
+write(99,*) 'normalization method ==> ', norm_method
 write(99,*) 'integral_P ==> ',integral_P
 write(99,*) 'E_cut ==> ',E_cut
 write(99,*) 'N_evals==> ',N_evals
