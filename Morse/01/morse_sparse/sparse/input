@@ -1,0 +1,8 @@
+4                       !d2
+.2 .18 .16 .14          !omega
+3500                    !NG
+-4                       !GH_order 
+grid.dat                !grid_in
+4Dmorse_sorted.dat      !theory_in
+3500                    !number of theory values to read in
+0.5                     !alpha_0
