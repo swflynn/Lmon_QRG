@@ -1,0 +1,10 @@
+11-4-2020
+
+This code needs sobol.f90 for qMC integration
+
+
+Test the morse normalization using different methods for computing integral_P
+
+Quasi-random does the best with larger dimensions/not enough points
+They are basically equivalent when enough points are used to normalize
+Overall quasi-random is the best option
