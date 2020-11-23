@@ -1,0 +1,6 @@
+TIP4P_Lmon3_amps.dat         !data_in
+999                          !Nmax
+2000                         !K
+20                           !sigma
+0                            !Fmin
+8000                         !Fmax
